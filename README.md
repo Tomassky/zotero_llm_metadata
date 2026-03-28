@@ -4,21 +4,42 @@
 
 ## 功能
 
-- 扫描无元数据的独立附件（PDF / Word / Excel / HTML / 图片），调用 LLM 生成结构化元数据（标题、作者、摘要、DOI 等），通过 Connector 写入 Zotero 并自动挂载父条目
-- 为已有条目补充缺失的 `abstractNote`（支持读取 PDF / Word / HTML 全文，或通过 VL 模型识别图片）
+- 扫描无元数据的独立附件，调用 LLM 生成结构化元数据（标题、作者、摘要、DOI 等），通过 Connector 写入 Zotero 并自动挂载父条目
+- 为已有条目补充缺失的 `abstractNote`（支持读取附件全文，或通过 VL 模型识别图片）
 - 以上两步均自动管理 Zotero 进程（写入 SQLite 前关闭，写入完成后重启）
+
+**支持格式：**
+
+| 类型 | 格式 |
+|------|------|
+| 文档 | `.pdf` / `.docx` / `.docm` / `.doc`（需 LibreOffice 或 antiword） |
+| 表格 | `.xlsx` / `.xls` / `.csv` |
+| 演示 | `.pptx` / `.pptm` / `.ppt` |
+| 文本 | `.txt` / `.md` / `.json` / `.rtf` / `.html` / `.htm` |
+| 电子书 | `.epub` |
+| 文字处理 | `.odt` |
+| 图片 | `.png` / `.jpg` / `.jpeg` / `.gif` / `.webp`（需配置 `vl_model`） |
 
 ## 依赖
 
 ```bash
-pip install httpx pypdf pdfminer.six python-docx openpyxl Pillow
+pip install httpx pypdf pdfminer.six python-docx openpyxl python-pptx \
+            striprtf ebooklib odfpy Pillow
 ```
 
 > 除 `httpx` 外均为可选依赖，按需安装：
 > - `pypdf` / `pdfminer.six`：PDF 文本提取
-> - `python-docx`：Word 文本提取
+> - `python-docx`：Word（`.docx` / `.docm`）文本提取
 > - `openpyxl`：Excel 文本提取
+> - `python-pptx`：PowerPoint 文本提取
+> - `striprtf`：RTF 文本提取
+> - `ebooklib`：EPUB 文本提取
+> - `odfpy`：ODT 文本提取
 > - `Pillow`：图片缩放与编码（图片附件必须）
+>
+> 老式二进制 `.doc` 需额外安装外部工具之一：
+> - **LibreOffice**（跨平台，推荐）：https://www.libreoffice.org
+> - **antiword**（macOS / Linux）：`brew install antiword` / `apt install antiword`
 
 ## 配置
 
@@ -80,7 +101,7 @@ python -m zotero_llm_metadata --fill-abstracts
 | 文件 | 包含内容 |
 |------|---------|
 | `__main__.py` | 入口、三种运行模式（dry-run / fill-metadata-abstract / fill-abstracts） |
-| `file_extract.py` | PDF / Word / Excel / HTML 文本提取；图片缩放与 base64 编码 |
+| `file_extract.py` | 多格式文本提取（PDF / Word / Excel / PowerPoint / HTML / Markdown / TXT / CSV / JSON / RTF / EPUB / ODT）；图片缩放与 base64 编码 |
 | `llm_client.py` | LLM 调用（含 retry）、JSON 解析（含控制字符修复）、Prompt 构建、VL 图片识别 |
 | `zotero_api.py` | Zotero HTTP API 交互、元数据工具函数 |
 | `zotero_db.py` | Zotero SQLite 操作（reparent、apply abstracts、tag cleanup） |
@@ -93,7 +114,10 @@ zotero_llm_metadata/
 ├── __main__.py         # 入口 + 三种运行模式
 ├── file_extract.py     # 多格式文本提取 + 图片处理
 │   ├── detect_file_type
-│   ├── extract_pdf_text / extract_word_text / extract_excel_text / extract_html_text
+│   ├── extract_pdf_text / extract_word_text / extract_excel_text
+│   ├── extract_pptx_text / extract_html_text / extract_markdown_text
+│   ├── extract_txt_text / extract_csv_text / extract_json_text
+│   ├── extract_rtf_text / extract_epub_text / extract_odt_text
 │   ├── resize_and_encode_image
 │   └── read_file_url
 │
