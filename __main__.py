@@ -26,7 +26,8 @@ def main() -> None:
                           ② 自动关闭 Zotero
                           ③ 从 metadata.jsonl 修复未完成的附件挂载，清理 LLM 标签
                           ④ 自动重启 Zotero
-                          支持格式：.pdf / .docx / .doc / .xlsx / .xls / .html / .htm
+                          支持格式：.pdf / .docx / .doc / .docm / .xlsx / .xls / .pptx / .ppt / .pptm
+                                    .html / .htm / .md / .txt / .csv / .json / .rtf / .epub / .odt
                                     .png / .jpg / .jpeg / .gif / .webp（图片需配置 vl_model）
 
   --fill-abstracts        全流程摘要模式（推荐，需 Zotero 运行）

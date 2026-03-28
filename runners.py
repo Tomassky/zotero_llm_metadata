@@ -9,9 +9,12 @@ import httpx
 
 from config import LLM_RETRIES, LLM_BACKOFF, LLM_MAX_BACKOFF
 from file_extract import (
-    detect_file_type, extract_excel_text, extract_html_text,
-    extract_pdf_text, extract_word_text, read_file_url,
-    resize_and_encode_image, truncate_for_print, truncate_to_token_limit,
+    detect_file_type,
+    extract_csv_text, extract_excel_text, extract_epub_text, extract_html_text,
+    extract_json_text, extract_markdown_text, extract_odt_text,
+    extract_pdf_text, extract_pptx_text, extract_rtf_text,
+    extract_txt_text, extract_word_text,
+    read_file_url, resize_and_encode_image, truncate_for_print, truncate_to_token_limit,
 )
 from llm_client import (
     build_abstract_prompt, build_prompt, build_evidence_text,
@@ -168,10 +171,28 @@ def _extract_text_from_attachment(
             text, total_pages, truncated_pages = extract_pdf_text(file_bytes, max_pages)
         elif file_type == "word":
             text, total_pages, truncated_pages = extract_word_text(file_bytes)
+        elif file_type == "pptx":
+            text, total_pages, truncated_pages = extract_pptx_text(file_bytes)
+        elif file_type == "excel":
+            text, total_pages, truncated_pages = extract_excel_text(file_bytes)
         elif file_type == "html":
             text, total_pages, truncated_pages = extract_html_text(file_bytes)
+        elif file_type == "markdown":
+            text, total_pages, truncated_pages = extract_markdown_text(file_bytes)
+        elif file_type == "txt":
+            text, total_pages, truncated_pages = extract_txt_text(file_bytes)
+        elif file_type == "csv":
+            text, total_pages, truncated_pages = extract_csv_text(file_bytes)
+        elif file_type == "json":
+            text, total_pages, truncated_pages = extract_json_text(file_bytes)
+        elif file_type == "rtf":
+            text, total_pages, truncated_pages = extract_rtf_text(file_bytes)
+        elif file_type == "epub":
+            text, total_pages, truncated_pages = extract_epub_text(file_bytes)
+        elif file_type == "odt":
+            text, total_pages, truncated_pages = extract_odt_text(file_bytes)
         else:
-            text, total_pages, truncated_pages = extract_excel_text(file_bytes)
+            text, total_pages, truncated_pages = "", 0, False
     except Exception as e:
         print(f"  SKIP {akey}: parse error: {e}", file=sys.stderr)
         return "", "", 0, False, False

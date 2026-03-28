@@ -25,6 +25,13 @@ try:
 except Exception:
     pass
 
+# PowerPoint reader (optional)
+_pptx = None
+try:
+    import pptx as _pptx  # python-pptx
+except Exception:
+    pass
+
 # Excel reader (optional)
 _openpyxl = None
 try:
@@ -36,6 +43,13 @@ except Exception:
 _PIL_Image = None
 try:
     from PIL import Image as _PIL_Image  # type: ignore
+except Exception:
+    pass
+
+# EPUB reader (optional)
+_ebooklib_epub = None
+try:
+    from ebooklib import epub as _ebooklib_epub  # type: ignore
 except Exception:
     pass
 
@@ -102,7 +116,8 @@ _IMAGE_MIME_PREFIXES = ("image/png", "image/jpeg", "image/gif", "image/webp", "i
 
 
 def detect_file_type(filename: str, content_type: str) -> str:
-    """Return 'pdf', 'word', 'excel', 'html', 'image', or '' for unsupported types."""
+    """Return one of: 'pdf','word','excel','pptx','markdown','html','image',
+    'txt','csv','json','rtf','epub','odt', or '' for unsupported types."""
     name = filename.lower()
     ct = content_type.lower()
     if "pdf" in ct or name.endswith(".pdf"):
@@ -110,8 +125,10 @@ def detect_file_type(filename: str, content_type: str) -> str:
     if (
         "wordprocessingml" in ct
         or "msword" in ct
+        or "macroenabled" in ct
         or name.endswith(".docx")
         or name.endswith(".doc")
+        or name.endswith(".docm")
     ):
         return "word"
     if (
@@ -123,6 +140,15 @@ def detect_file_type(filename: str, content_type: str) -> str:
     ):
         return "excel"
     if (
+        "presentationml" in ct
+        or name.endswith(".pptx")
+        or name.endswith(".ppt")
+        or name.endswith(".pptm")
+    ):
+        return "pptx"
+    if name.endswith(".md") or name.endswith(".markdown"):
+        return "markdown"
+    if (
         "html" in ct
         or name.endswith(".html")
         or name.endswith(".htm")
@@ -130,6 +156,18 @@ def detect_file_type(filename: str, content_type: str) -> str:
         return "html"
     if any(ct.startswith(p) for p in _IMAGE_MIME_PREFIXES) or any(name.endswith(e) for e in _IMAGE_EXTS):
         return "image"
+    if "rtf" in ct or name.endswith(".rtf"):
+        return "rtf"
+    if "epub" in ct or name.endswith(".epub"):
+        return "epub"
+    if "opendocument.text" in ct or name.endswith(".odt"):
+        return "odt"
+    if "text/csv" in ct or name.endswith(".csv"):
+        return "csv"
+    if "application/json" in ct or name.endswith(".json"):
+        return "json"
+    if "text/plain" in ct or name.endswith(".txt"):
+        return "txt"
     return ""
 
 
@@ -194,14 +232,251 @@ def extract_pdf_text(pdf_bytes: bytes, max_pages: int) -> Tuple[str, int, bool]:
 # Word / Excel extraction
 # ---------------------------------------------------------------------------
 
+def _find_soffice() -> str:
+    """Return path to LibreOffice soffice executable, or ''."""
+    import platform
+    import shutil
+    import os
+    system = platform.system()
+    if system == "Windows":
+        for candidate in [
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        ]:
+            if os.path.isfile(candidate):
+                return candidate
+    elif system == "Darwin":
+        path = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        if os.path.isfile(path):
+            return path
+    return shutil.which("soffice") or shutil.which("libreoffice") or ""
+
+
+def _extract_doc_via_libreoffice(file_bytes: bytes) -> str:
+    """Cross-platform fallback: convert .doc to txt via LibreOffice headless."""
+    import os
+    import subprocess
+    import tempfile
+    soffice = _find_soffice()
+    if not soffice:
+        return ""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        doc_path = os.path.join(tmpdir, "input.doc")
+        with open(doc_path, "wb") as f:
+            f.write(file_bytes)
+        try:
+            subprocess.run(
+                [soffice, "--headless", "--convert-to", "txt:Text", "--outdir", tmpdir, doc_path],
+                capture_output=True,
+                timeout=60,
+            )
+            txt_path = os.path.join(tmpdir, "input.txt")
+            if os.path.exists(txt_path):
+                with open(txt_path, "rb") as f:
+                    return f.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+    return ""
+
+
+def _extract_doc_via_antiword(file_bytes: bytes) -> str:
+    """Unix/macOS fallback: extract .doc text via antiword subprocess."""
+    import os
+    import subprocess
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(suffix=".doc", delete=False)
+    try:
+        tmp.write(file_bytes)
+        tmp.close()
+        result = subprocess.run(
+            ["antiword", tmp.name],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return result.stdout.decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+    finally:
+        os.unlink(tmp.name)
+    return ""
+
+
 def extract_word_text(file_bytes: bytes) -> Tuple[str, int, bool]:
     if _docx is None:
         raise RuntimeError(
             "Word text extraction failed. Install `python-docx` "
             "with `python3 -m pip install python-docx`."
         )
-    doc = _docx.Document(io.BytesIO(file_bytes))
-    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+    try:
+        doc = _docx.Document(io.BytesIO(file_bytes))
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        text = normalize_extracted_text("\n\n".join(paragraphs))
+        return text, len(paragraphs), False
+    except Exception as e:
+        msg = str(e).lower()
+        if "zip" not in msg and "not a word file" not in msg:
+            raise  # 非格式问题，直接抛出
+
+    # 老式二进制 .doc：依次尝试 LibreOffice（跨平台）→ antiword（Unix/macOS）
+    for extractor in (_extract_doc_via_libreoffice, _extract_doc_via_antiword):
+        raw = extractor(file_bytes)
+        if raw:
+            text = normalize_extracted_text(raw)
+            para_count = len([p for p in text.split("\n\n") if p.strip()])
+            return text, para_count, False
+
+    raise RuntimeError(
+        "Old binary .doc format could not be parsed. "
+        "Install LibreOffice (https://www.libreoffice.org) or antiword "
+        "(`brew install antiword` on macOS / `apt install antiword` on Linux), "
+        "or convert the file to .docx first."
+    )
+
+
+def extract_pptx_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    if _pptx is None:
+        raise RuntimeError(
+            "PowerPoint text extraction failed. Install `python-pptx` "
+            "with `python3 -m pip install python-pptx`."
+        )
+    prs = _pptx.Presentation(io.BytesIO(file_bytes))
+    total_slides = len(prs.slides)
+    chunks = []
+    for slide in prs.slides:
+        slide_parts = []
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                line = "".join(run.text for run in para.runs).strip()
+                if line:
+                    slide_parts.append(line)
+        if slide_parts:
+            chunks.append("\n".join(slide_parts))
+    text = normalize_extracted_text("\n\n".join(chunks))
+    return text, total_slides, False
+
+
+def _decode_text_bytes(file_bytes: bytes) -> str:
+    """Try common encodings in order, fall back to utf-8 with replacement."""
+    for enc in ("utf-8-sig", "utf-8", "gbk", "cp1252", "latin-1"):
+        try:
+            return file_bytes.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return file_bytes.decode("utf-8", errors="replace")
+
+
+def extract_txt_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    raw = _decode_text_bytes(file_bytes)
+    text = normalize_extracted_text(raw)
+    para_count = len([p for p in text.split("\n\n") if p.strip()])
+    return text, para_count, False
+
+
+def extract_markdown_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    raw = _decode_text_bytes(file_bytes)
+    text = normalize_extracted_text(raw)
+    para_count = len([p for p in text.split("\n\n") if p.strip()])
+    return text, para_count, False
+
+
+def extract_csv_text(file_bytes: bytes, max_rows: int = 500) -> Tuple[str, int, bool]:
+    import csv as _csv
+    raw = _decode_text_bytes(file_bytes)
+    reader = _csv.reader(io.StringIO(raw))
+    rows = []
+    total_rows = 0
+    truncated = False
+    for row in reader:
+        cells = [c.strip() for c in row if c.strip()]
+        if cells:
+            rows.append("\t".join(cells))
+            total_rows += 1
+        if max_rows > 0 and total_rows >= max_rows:
+            truncated = True
+            break
+    text = normalize_extracted_text("\n".join(rows))
+    return text, total_rows, truncated
+
+
+def extract_json_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    import json as _json
+    raw = _decode_text_bytes(file_bytes)
+    try:
+        data = _json.loads(raw)
+        text = _json.dumps(data, ensure_ascii=False, indent=2)
+    except Exception:
+        text = raw
+    text = normalize_extracted_text(text)
+    return text, 1, False
+
+
+def extract_rtf_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    try:
+        from striprtf.striprtf import rtf_to_text  # type: ignore
+    except Exception:
+        raise RuntimeError(
+            "RTF text extraction failed. Install `striprtf` "
+            "with `python3 -m pip install striprtf`."
+        )
+    raw = _decode_text_bytes(file_bytes)
+    text = normalize_extracted_text(rtf_to_text(raw))
+    para_count = len([p for p in text.split("\n\n") if p.strip()])
+    return text, para_count, False
+
+
+def extract_epub_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    import os
+    import tempfile
+    if _ebooklib_epub is None:
+        raise RuntimeError(
+            "EPUB text extraction failed. Install `ebooklib` "
+            "with `python3 -m pip install ebooklib`."
+        )
+    from ebooklib import ITEM_DOCUMENT  # type: ignore
+    tmp = tempfile.NamedTemporaryFile(suffix=".epub", delete=False)
+    try:
+        tmp.write(file_bytes)
+        tmp.close()
+        book = _ebooklib_epub.read_epub(tmp.name)
+        chunks = []
+        for item in book.get_items_of_type(ITEM_DOCUMENT):
+            part, _, _ = extract_html_text(item.get_content())
+            if part.strip():
+                chunks.append(part)
+        text = normalize_extracted_text("\n\n".join(chunks))
+    finally:
+        os.unlink(tmp.name)
+    return text, len(chunks), False
+
+
+def extract_odt_text(file_bytes: bytes) -> Tuple[str, int, bool]:
+    try:
+        from odf.opendocument import load as odf_load  # type: ignore
+        from odf.text import P  # type: ignore
+    except Exception:
+        raise RuntimeError(
+            "ODT text extraction failed. Install `odfpy` "
+            "with `python3 -m pip install odfpy`."
+        )
+    doc = odf_load(io.BytesIO(file_bytes))
+    paragraphs = []
+    for para in doc.getElementsByType(P):
+        parts = []
+        for node in para.childNodes:
+            if hasattr(node, "data"):
+                parts.append(node.data)
+            elif hasattr(node, "childNodes"):
+                for child in node.childNodes:
+                    if hasattr(child, "data"):
+                        parts.append(child.data)
+        line = "".join(parts).strip()
+        if line:
+            paragraphs.append(line)
     text = normalize_extracted_text("\n\n".join(paragraphs))
     return text, len(paragraphs), False
 
