@@ -449,8 +449,14 @@ def extract_epub_text(file_bytes: bytes) -> Tuple[str, int, bool]:
             if part.strip():
                 chunks.append(part)
         text = normalize_extracted_text("\n\n".join(chunks))
+    except Exception:
+        tmp.close()
+        raise
     finally:
-        os.unlink(tmp.name)
+        try:
+            os.unlink(tmp.name)
+        except FileNotFoundError:
+            pass
     return text, len(chunks), False
 
 
@@ -581,7 +587,8 @@ def extract_excel_text(file_bytes: bytes, max_rows: int = 500) -> Tuple[str, int
 
 _SAVE_FMT = {"JPEG": ("JPEG", "image/jpeg"), "PNG": ("PNG", "image/png"),
              "GIF": ("PNG", "image/png"), "WEBP": ("WEBP", "image/webp"),
-             "BMP": ("PNG", "image/png"), "TIFF": ("PNG", "image/png")}
+             "BMP": ("PNG", "image/png"), "TIFF": ("PNG", "image/png"),
+             "TIF": ("PNG", "image/png")}
 
 
 def resize_and_encode_image(file_bytes: bytes, max_long_side: int = 1280) -> Tuple[str, str]:
