@@ -18,6 +18,7 @@ from file_extract import (
 )
 from llm_client import (
     build_abstract_prompt, build_prompt, build_evidence_text,
+    build_tags_prompt,
     extract_json, extract_text_from_image,
     generate_abstract_for_item, request_llm_with_retry,
 )
@@ -27,9 +28,9 @@ from zotero_api import (
     get_inherited_collections, get_local_item_data, join_url, normalize_tags,
 )
 from zotero_db import (
-    apply_abstracts_from_mappings, cleanup_llm_tags,
+    apply_abstracts_from_mappings, apply_tags_from_mappings, cleanup_llm_tags,
     load_abstract_mappings_from_jsonl, load_repair_mappings_from_jsonl,
-    reparent_attachments_in_db,
+    load_tags_mappings_from_jsonl, reparent_attachments_in_db,
 )
 from zotero_process import ensure_zotero_closed, is_zotero_running, reopen_zotero
 
@@ -77,6 +78,23 @@ def run_dry_run(args: SimpleNamespace, client: httpx.Client) -> None:
             print(f"  {i:3}. [{row['key']}] ({row['itemType']}) {row['title'] or '(no title)'}")
     else:
         print("\n[DRY RUN] No items without abstractNote found.")
+
+    # Also list items without tags (from SQLite, no API needed)
+    from fill_tags import fetch_no_tag_items
+    try:
+        no_tag_items = fetch_no_tag_items(args.db_path)
+    except Exception as e:
+        print(f"\n[DRY RUN] no-tag scan failed: {e}", file=sys.stderr)
+        return
+
+    if no_tag_items:
+        print(f"\n[DRY RUN] {len(no_tag_items)} item(s) without tags:")
+        for i, item in enumerate(no_tag_items, 1):
+            att_count = len(item.get("attachments", []))
+            att_info = f" ({att_count} att)" if att_count else ""
+            print(f"  {i:3}. [{item['key']}] ({item['item_type']}){att_info} {item['title'][:60]}")
+    else:
+        print("\n[DRY RUN] No items without tags found.")
 
 
 # ---------------------------------------------------------------------------
@@ -572,3 +590,215 @@ def run_fill_metadata_abstract(args: SimpleNamespace, client: httpx.Client) -> N
         print(f"tag cleanup failed: {e}", file=sys.stderr)
     if zotero_was_running:
         reopen_zotero()
+
+
+# ---------------------------------------------------------------------------
+# Mode: --build-graph
+# ---------------------------------------------------------------------------
+
+def run_build_graph(args: SimpleNamespace) -> None:
+    """Build knowledge graph from Zotero SQLite database.
+
+    Pipeline: fetch → build_graph → cluster → validate → analyze → export.
+    No Zotero instance needed — reads directly from SQLite.
+    """
+    from graph_builder import (
+        TagFilter,
+        build_graph,
+        cluster,
+        cohesion_score,
+        export_report,
+        fetch_items_from_db,
+        god_nodes,
+        graph_stats,
+        label_communities,
+        surprising_connections,
+        validate_communities,
+    )
+
+    print(f"Reading items from {args.db_path}...")
+    items, collection_names = fetch_items_from_db(args.db_path)
+    print(f"  Found {len(items)} items, {len(collection_names)} collections")
+
+    tag_filter = TagFilter(max_fraction=args.tag_fraction, min_items=2)
+    G = build_graph(
+        items,
+        collection_names,
+        max_degree=args.max_degree,
+        tag_filter=tag_filter,
+    )
+
+    stats = graph_stats(G)
+    print(f"  Graph: {stats['nodes']} nodes, {stats['edges']} edges, avg degree {stats['avg_degree']}")
+
+    communities = cluster(G)
+    community_labels = label_communities(G, communities)
+    cohesion = {cid: cohesion_score(G, nodes) for cid, nodes in communities.items()}
+
+    validation = validate_communities(G, communities)
+    print(f"  Communities: {validation['community_count']}, modularity: {validation['modularity']}, status: {validation['status']}")
+
+    god_list = god_nodes(G, top_n=10)
+    surprise_list = surprising_connections(G, communities, top_n=5)
+
+    export_report(
+        G, communities, community_labels, cohesion,
+        collection_names, validation, god_list, surprise_list, stats,
+        args.graph_output_dir,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mode: --fill-tags
+# ---------------------------------------------------------------------------
+
+def run_fill_tags(args: SimpleNamespace, client: httpx.Client) -> None:
+    """为没有 tag 的条目批量生成标签。
+
+    ① 扫描无 tag 条目，读取附件全文
+    ② 调用 LLM 生成 tag，存入 fill_tags.jsonl
+    ③ 关闭 Zotero
+    ④ 将 tag 写入 SQLite
+    ⑤ 重启 Zotero
+    """
+    # Step 1: Generate tags
+    _run_generate_tags(args, client)
+
+    if not args.db_path:
+        print("fill-tags: db_path 未配置，跳过写入步骤。", file=sys.stderr)
+        return
+
+    # Step 2: Close Zotero, write tags to DB, reopen
+    zotero_was_running = is_zotero_running()
+    if not ensure_zotero_closed("fill-tags"):
+        return
+
+    try:
+        mappings, info = load_tags_mappings_from_jsonl(args.fill_tags_out)
+        print(
+            f"Tags mapping summary: "
+            f"total_lines={info['total_lines']} parsed={info['parsed_lines']} "
+            f"valid={info['valid_mappings']} invalid_json={info['invalid_lines']} "
+            f"missing_keys={info['missing_keys']}"
+        )
+    except Exception as e:
+        print(f"fill-tags: 无法读取映射: {e}", file=sys.stderr)
+        return
+
+    if mappings:
+        try:
+            stats = apply_tags_from_mappings(args.db_path, mappings)
+            print(f"Tags written: {stats['written']} added, {stats['skipped']} skipped, {stats['failed']} failed")
+            for err in stats["errors"][:10]:
+                print(f"  Error: {err}", file=sys.stderr)
+        except Exception as e:
+            print(f"fill-tags DB write failed: {e}", file=sys.stderr)
+
+    if zotero_was_running:
+        reopen_zotero()
+
+
+def _run_generate_tags(args: SimpleNamespace, client: httpx.Client) -> None:
+    """扫描无 tag 条目 → 读取全文 → LLM 生成 tag → 存 jsonl。"""
+    from fill_tags import fetch_no_tag_items, get_best_attachment_text, build_evidence_for_item
+    from zotero_api import join_url
+
+    items = fetch_no_tag_items(args.db_path)
+    if not items:
+        print("No items without tags found.", file=sys.stderr)
+        return
+
+    print(f"Found {len(items)} items without tags")
+
+    with open(args.fill_tags_out, "w", encoding="utf-8") as out_f:
+        for i, item in enumerate(items):
+            key = item["key"]
+            title = item["title"]
+            print(f"  [{i+1}/{len(items)}] {key}: {title[:60]}")
+
+            # Read attachment text
+            fulltext, file_type = get_best_attachment_text(
+                args.zotero_storage_dir,
+                item,
+                max_chars=args.fill_tags_max_fulltext_chars,
+            )
+
+            # Build evidence
+            evidence = build_evidence_for_item(item, fulltext, args.fill_tags_max_fulltext_chars)
+
+            # Build prompt
+            system, user = build_tags_prompt(title=title, evidence_text=evidence)
+            if args.print_prompt:
+                print(f"\n=== PROMPT {key} (system) ===\n{truncate_for_print(system, args.print_max_chars)}", file=sys.stderr)
+                print(f"\n=== PROMPT {key} (user) ===\n{truncate_for_print(user, args.print_max_chars)}", file=sys.stderr)
+
+            # Call LLM
+            llm_payload = {
+                "model": args.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "temperature": 0.2,
+                "max_tokens": args.fill_tags_max_output_tokens,
+            }
+
+            did_llm_request = False
+            try:
+                content = request_llm_with_retry(
+                    client,
+                    join_url(args.llm_base, "chat/completions"),
+                    headers={
+                        "Authorization": f"Bearer {args.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    payload=llm_payload,
+                    timeout=args.timeout,
+                    retries=LLM_RETRIES,
+                    backoff=LLM_BACKOFF,
+                    max_backoff=LLM_MAX_BACKOFF,
+                    key=key,
+                    debug=args.print_response,
+                    max_print_chars=args.print_max_chars,
+                )
+                did_llm_request = True
+            except Exception as e:
+                print(f"LLM FAIL {key}: {e}", file=sys.stderr)
+                continue
+            finally:
+                if did_llm_request:
+                    sleep_secs = random.uniform(30, 45)
+                    print(f"Sleeping {sleep_secs:.1f}s after LLM request...", file=sys.stderr)
+                    time.sleep(sleep_secs)
+
+            if args.print_response:
+                print(f"\n=== RESPONSE {key} ===\n{truncate_for_print(content, args.print_max_chars)}", file=sys.stderr)
+
+            # Parse response
+            json_text = extract_json(content)
+            tags = []
+            if json_text:
+                try:
+                    parsed = json.loads(json_text)
+                    tags = parsed.get("tags", [])
+                    if not isinstance(tags, list):
+                        tags = []
+                except Exception:
+                    tags = []
+
+            record = {
+                "key": key,
+                "title": title,
+                "item_type": item.get("item_type", ""),
+                "has_fulltext": bool(fulltext),
+                "file_type": file_type,
+                "tags": tags,
+                "raw_response": content,
+            }
+
+            if tags:
+                print(f"    OK {key}: {len(tags)} tags generated")
+            else:
+                print(f"    WARN {key}: no tags extracted from LLM response")
+
+            out_f.write(json.dumps(record, ensure_ascii=False) + "\n")

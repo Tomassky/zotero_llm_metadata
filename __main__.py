@@ -9,7 +9,7 @@ except Exception:
     raise
 
 from config import make_args
-from runners import run_dry_run, run_fill_abstracts, run_fill_metadata_abstract
+from runners import run_dry_run, run_fill_abstracts, run_fill_metadata_abstract, run_build_graph, run_fill_tags
 
 
 def main() -> None:
@@ -40,6 +40,17 @@ def main() -> None:
   --dry-run               预览模式（不调用 LLM）
                           列出当前缺少元数据的附件，以及缺少 abstractNote 的条目。
 
+  --build-graph           知识图构建模式（不需要 Zotero 运行）
+                          从 Zotero SQLite 读取文献、tag、collection 数据，
+                          构建 NetworkX 知识图，运行 Leiden/Louvain 社区检测，
+                          导出 graph.json、GRAPH_REPORT.md、TAG_FILTER.md。
+
+  --fill-tags             标签生成模式（需 Zotero 运行）
+                          ① 扫描没有 tag 的条目，读取附件全文，调用 LLM 生成标签
+                          ② 自动关闭 Zotero
+                          ③ 将标签写入 Zotero SQLite 数据库
+                          ④ 自动重启 Zotero
+
 环境变量
 ========
   DASHSCOPE_API_KEY       调用 LLM 所需的 API Key
@@ -50,18 +61,33 @@ def main() -> None:
                       help="全流程元数据模式：提取元数据 + 自动 repair")
     mode.add_argument("--fill-abstracts", action="store_true",
                       help="全流程摘要模式：生成摘要 + 自动写入数据库")
+    mode.add_argument("--fill-tags", action="store_true",
+                      help="标签生成模式：为无 tag 条目批量生成标签 + 写入数据库")
+    mode.add_argument("--build-graph", action="store_true",
+                      help="构建知识图：从 Zotero DB 建图 + Leiden 社区检测 + 导出")
     mode.add_argument("--dry-run", action="store_true",
                       help="预览缺少元数据和摘要的条目列表，不调用 LLM")
     parsed = parser.parse_args()
 
-    if not any([parsed.fill_metadata_abstract, parsed.fill_abstracts, parsed.dry_run]):
+    if not any([parsed.fill_metadata_abstract, parsed.fill_abstracts, parsed.dry_run, parsed.build_graph, parsed.fill_tags]):
         parser.print_help()
         sys.exit(0)
 
     args = make_args(parsed)
 
-    needs_llm = not args.dry_run
+    if args.build_graph:
+        run_build_graph(args)
+        return
+
+    needs_llm = not args.dry_run and not args.fill_tags
     if needs_llm and not args.api_key:
+        print(
+            "Missing API key. Set the DASHSCOPE_API_KEY environment variable.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    if args.fill_tags and not args.api_key:
         print(
             "Missing API key. Set the DASHSCOPE_API_KEY environment variable.",
             file=sys.stderr,
@@ -73,6 +99,8 @@ def main() -> None:
             run_dry_run(args, client)
         elif args.fill_abstracts:
             run_fill_abstracts(args, client)
+        elif args.fill_tags:
+            run_fill_tags(args, client)
         else:
             run_fill_metadata_abstract(args, client)
 

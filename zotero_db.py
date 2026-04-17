@@ -1,5 +1,8 @@
 import json
 import sqlite3
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def cleanup_llm_tags(db_path: str, prefix: str = "__llm_import__") -> dict:
@@ -171,3 +174,119 @@ def load_repair_mappings_from_jsonl(jsonl_path: str) -> tuple[list[dict], dict]:
             })
             info["valid_mappings"] += 1
     return mappings, info
+
+
+# ---------------------------------------------------------------------------
+# Tag writing (for --fill-tags)
+# ---------------------------------------------------------------------------
+
+def write_tags_to_db(db_path: str, item_key: str, tags: list[str]) -> dict:
+    """将 tags 写入 Zotero SQLite 的 itemTags 表。
+
+    Args:
+        db_path: Zotero SQLite 数据库路径
+        item_key: Zotero item key (short hash)
+        tags: list of tag name strings
+
+    Returns:
+        {"written": int, "skipped": int, "errors": list}
+    """
+    stats: dict = {"written": 0, "skipped": 0, "errors": []}
+    conn = sqlite3.connect(db_path, timeout=10)
+    try:
+        cur = conn.cursor()
+
+        # Find itemID
+        row = cur.execute("SELECT itemID FROM items WHERE key=?", (item_key,)).fetchone()
+        if not row:
+            stats["errors"].append(f"item key '{item_key}' not found")
+            return stats
+        item_id = row[0]
+
+        for tag_name in tags:
+            tag_name = tag_name.strip()
+            if not tag_name:
+                stats["skipped"] += 1
+                continue
+
+            # Find or create tagID
+            tag_row = cur.execute("SELECT tagID FROM tags WHERE name=?", (tag_name,)).fetchone()
+            if tag_row:
+                tag_id = tag_row[0]
+            else:
+                cur.execute("INSERT INTO tags (name) VALUES (?)", (tag_name,))
+                tag_id = cur.lastrowid
+
+            # Insert itemTags (ignore if already exists)
+            try:
+                cur.execute(
+                    "INSERT OR IGNORE INTO itemTags (itemID, tagID, type) VALUES (?, ?, 0)",
+                    (item_id, tag_id),
+                )
+                if cur.rowcount > 0:
+                    stats["written"] += 1
+                else:
+                    stats["skipped"] += 1
+            except Exception as e:
+                stats["errors"].append(f"tag '{tag_name}': {e}")
+
+        conn.commit()
+    except Exception as e:
+        stats["errors"].append(str(e))
+    finally:
+        conn.close()
+    return stats
+
+
+def load_tags_mappings_from_jsonl(jsonl_path: str) -> tuple[list[dict], dict]:
+    """从 fill_tags.jsonl 加载 (key, tags) 映射。
+
+    Returns:
+        (mappings, info) where each mapping has {"key": "...", "tags": [...]}
+    """
+    mappings = []
+    info = {
+        "total_lines": 0,
+        "parsed_lines": 0,
+        "valid_mappings": 0,
+        "invalid_lines": 0,
+        "missing_keys": 0,
+    }
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for raw in f:
+            info["total_lines"] += 1
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+                info["parsed_lines"] += 1
+            except Exception:
+                info["invalid_lines"] += 1
+                continue
+            key = str(rec.get("key", "")).strip()
+            tags = rec.get("tags", [])
+            if not key or not isinstance(tags, list) or not tags:
+                info["missing_keys"] += 1
+                continue
+            # Filter empty tags
+            tags = [t.strip() for t in tags if isinstance(t, str) and t.strip()]
+            if not tags:
+                info["missing_keys"] += 1
+                continue
+            mappings.append({"key": key, "tags": tags})
+            info["valid_mappings"] += 1
+    return mappings, info
+
+
+def apply_tags_from_mappings(db_path: str, mappings: list[dict]) -> dict:
+    """批量将 tags 写入 Zotero SQLite。Returns stats."""
+    total_stats: dict = {"written": 0, "skipped": 0, "failed": 0, "errors": []}
+    for m in mappings:
+        stats = write_tags_to_db(db_path, m["key"], m["tags"])
+        total_stats["written"] += stats["written"]
+        total_stats["skipped"] += stats["skipped"]
+        if stats["errors"]:
+            total_stats["failed"] += 1
+            total_stats["errors"].extend(stats["errors"])
+    return total_stats

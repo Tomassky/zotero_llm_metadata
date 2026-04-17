@@ -293,6 +293,41 @@ def build_evidence_text(item_data: dict, attachment_fulltext: str, max_fulltext_
 
 
 # ---------------------------------------------------------------------------
+# Tag generation prompt
+# ---------------------------------------------------------------------------
+
+def build_tags_prompt(title: str, evidence_text: str) -> Tuple[str, str]:
+    """构建只生成 tag 的 LLM prompt。"""
+    system = (
+        "You are a meticulous bibliographic cataloger for Zotero.\n"
+        "Task: extract topic tags ONLY from the given document evidence.\n"
+        "Output must be ONE valid JSON object and nothing else.\n"
+        "No markdown, no code fences, no explanations."
+    )
+    user = (
+        "根据提供的文献内容，提取该文献的主题标签（tags），严格输出一个 JSON 对象。\n\n"
+        "字段与格式要求：\n"
+        "1) 必须包含且仅包含一个字段：tags\n"
+        "2) tags 必须是字符串数组，数量 5-10 个标签\n"
+        "3) 标签粒度要求：\n"
+        "   - 中等粒度，避免过于宽泛（如「技术」「科学」）或过于狭窄（如仅1条文献特有的标签）\n"
+        "   - 好的标签示例：「渗透测试」「云安全」「机器学习」「逆向工程」「多代理协作」\n"
+        "4) 标签语言：根据文献内容自然选择中文或英文标签\n"
+        "5) 标签风格：简洁、准确、可复用（其他同主题文献也应能获得相同标签）\n"
+        "6) 不要重复标题中已有的信息作为标签\n"
+        "7) 不要使用层级标签（如「Computer Science - Machine Learning」），应拆分为独立标签\n\n"
+        "输出模板（字段名必须一致）：\n"
+        "{\"tags\":[]}\n\n"
+        f"文献标题: {title}\n"
+        "文献证据开始：\n"
+        "<<<EVIDENCE>>>\n"
+        f"{evidence_text}\n"
+        "<<<END_EVIDENCE>>>\n"
+    )
+    return system, user
+
+
+# ---------------------------------------------------------------------------
 # Abstract generation
 # ---------------------------------------------------------------------------
 
