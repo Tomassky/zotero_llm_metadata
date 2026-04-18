@@ -201,6 +201,9 @@ Example prompts:
 - **"Find papers conceptually similar to deep learning in computer vision"** *(semantic search)*
 - **"Research that relates to the intersection of AI and healthcare"** *(semantic search)*
 - **"Papers that discuss topics similar to this abstract: [paste text]"** *(semantic search)*
+- **"What communities exist in my knowledge graph?"** *(knowledge graph)*
+- **"Search my graph for papers related to 渗透测试"** *(knowledge graph)*
+- **"Show me the graph context for item key ABCD1234"** *(knowledge graph)*
 
 ### For Cherry Studio
 
@@ -326,6 +329,14 @@ The first time you use PDF annotation features, the necessary tools will be auto
 - `zotero_get_notes`: Retrieve notes from your Zotero library
 - `zotero_search_notes`: Search in notes and annotations (including PDF-extracted)
 - `zotero_create_note`: Create a new note for an item (beta feature)
+
+### 🗺️ Knowledge Graph Tools
+
+> Requires a pre-built graph. Run `python __main__.py --build-graph` in [zotero_llm_metadata](https://github.com/tomaspozo/zotero_llm_metadata) first to generate `graph/graph.json`.
+
+- `zotero_graph_search`: Keyword search across item titles, tags, and community labels — returns matched items with community context and top neighbors
+- `zotero_graph_explore_item`: Full graph context for a single item by Zotero key — community, tags, and all neighbors sorted by connection strength
+- `zotero_graph_community_info`: Browse community structure — no argument lists all communities; provide a label to get member detail
 
 ## 🔍 Troubleshooting
 

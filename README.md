@@ -6,7 +6,9 @@
 
 - 扫描无元数据的独立附件，调用 LLM 生成结构化元数据（标题、作者、摘要、DOI 等），通过 Connector 写入 Zotero 并自动挂载父条目
 - 为已有条目补充缺失的 `abstractNote`（支持读取附件全文，或通过 VL 模型识别图片）
-- 以上两步均自动管理 Zotero 进程（写入 SQLite 前关闭，写入完成后重启）
+- 为无标签条目批量生成标签（读取附件全文，调用 LLM 输出结构化 JSON 标签列表）
+- 基于集合与标签关系构建知识图谱，运行 Leiden 社区检测，导出可交互的 HTML 可视化
+- 以上元数据/摘要步骤均自动管理 Zotero 进程（写入 SQLite 前关闭，写入完成后重启）
 
 **支持格式：**
 
@@ -55,13 +57,22 @@ export DASHSCOPE_API_KEY=sk-xxxx
 # 在 zotero_llm_metadata/ 同级目录执行
 
 # 预览：列出无元数据附件 + 缺摘要条目，不调用 LLM
-python -m zotero_llm_metadata --dry-run
+python __main__.py --dry-run
 
 # 全流程元数据：提取元数据 → 写入 Zotero → 自动 repair → 重启 Zotero
-python -m zotero_llm_metadata --fill-metadata-abstract
+python __main__.py --fill-metadata-abstract
 
 # 全流程摘要：生成 abstractNote → 关闭 Zotero → 写入数据库 → 重启 Zotero
-python -m zotero_llm_metadata --fill-abstracts
+python __main__.py --fill-abstracts
+
+# 批量生成标签：扫描无 tag 条目 → 读取附件全文 → LLM 生成标签
+python __main__.py --fill-tags
+
+# 构建知识图谱：从 SQLite 读取条目 → 构建图 → 社区检测 → 导出 graph/
+python __main__.py --build-graph
+
+# 可视化知识图谱（需先运行 --build-graph）
+python graph_visualize.py          # 生成 graph/graph_vis.html
 ```
 
 不带参数运行显示帮助信息。
@@ -89,29 +100,62 @@ python -m zotero_llm_metadata --fill-abstracts
 ③ 自动重启 Zotero
 ```
 
+### `--fill-tags`
+
+```
+① Zotero 运行中（只读 SQLite，不需要 Zotero 运行也可）
+   扫描无 tag 条目 → 读取附件全文（支持全格式）→ LLM 生成标签列表
+   结果保存到 fill_tags.jsonl
+（需手动将标签写回 Zotero）
+```
+
+### `--build-graph`
+
+```
+① 不需要 Zotero 运行
+   从 SQLite 读取全量条目 → 应用同义词归一化（双语/中文近义词）
+   → 按集合（weight=2）和共同标签（weight=1）建立边
+   → 过滤高度数节点（max_degree=15）和过于泛化的标签（tag_fraction≤0.20）
+   → Leiden 社区检测
+② 输出到 graph/ 目录
+   graph.json（节点/边/社区数据）、GRAPH_REPORT.md（分析报告）、TAG_FILTER.md
+③ 可选：运行 graph_visualize.py 生成交互式 HTML（需 pyvis）
+```
+
 ## 输出文件
 
 | 文件 | 内容 |
 |------|------|
 | `metadata.jsonl` | 每行一条元数据提取结果（含原始响应和写入状态） |
 | `fill_abstracts.jsonl` | 每行一条摘要生成结果（含置信度和原始响应） |
+| `fill_tags.jsonl` | 每行一条标签生成结果（含 LLM 原始响应） |
+| `graph/graph.json` | 知识图谱数据（节点、边、社区） |
+| `graph/GRAPH_REPORT.md` | 图谱分析报告（社区概览、关键节点、模块度） |
+| `graph/TAG_FILTER.md` | 被过滤掉的高频标签列表 |
+| `graph/graph_vis.html` | 交互式可视化（由 `graph_visualize.py` 生成） |
 
 ## 模块说明
 
 | 文件 | 包含内容 |
 |------|---------|
-| `__main__.py` | 入口、三种运行模式（dry-run / fill-metadata-abstract / fill-abstracts） |
+| `__main__.py` | 入口、五种运行模式（dry-run / fill-metadata-abstract / fill-abstracts / fill-tags / build-graph） |
 | `file_extract.py` | 多格式文本提取（PDF / Word / Excel / PowerPoint / HTML / Markdown / TXT / CSV / JSON / RTF / EPUB / ODT）；图片缩放与 base64 编码 |
 | `llm_client.py` | LLM 调用（含 retry）、JSON 解析（含控制字符修复）、Prompt 构建、VL 图片识别 |
 | `zotero_api.py` | Zotero HTTP API 交互、元数据工具函数 |
 | `zotero_db.py` | Zotero SQLite 操作（reparent、apply abstracts、tag cleanup） |
 | `zotero_process.py` | Zotero 进程管理（检测、关闭、重启） |
+| `fill_tags.py` | 无标签条目扫描、全文提取、LLM 标签生成 |
+| `graph_builder.py` | 知识图谱构建（读取 SQLite、同义词归一化、建边、度数过滤、Leiden 聚类、JSON/HTML/报告导出） |
+| `graph_visualize.py` | 从 `graph/graph.json` 生成交互式 HTML（Pyvis，按社区着色） |
 
 ## 项目结构
 
 ```
 zotero_llm_metadata/
-├── __main__.py         # 入口 + 三种运行模式
+├── __main__.py         # 入口 + 五种运行模式
+├── config.py           # 参数集中管理（模型、路径、图谱参数等）
+├── runners.py          # 各模式的顶层调度逻辑
+│
 ├── file_extract.py     # 多格式文本提取 + 图片处理
 │   ├── detect_file_type
 │   ├── extract_pdf_text / extract_word_text / extract_excel_text
@@ -140,8 +184,27 @@ zotero_llm_metadata/
 │   ├── load_repair_mappings_from_jsonl / load_abstract_mappings_from_jsonl
 │   └── cleanup_llm_tags
 │
-└── zotero_process.py   # Zotero 进程管理
-    ├── is_zotero_running
-    ├── close_zotero / reopen_zotero
-    └── ensure_zotero_closed
+├── zotero_process.py   # Zotero 进程管理
+│   ├── is_zotero_running
+│   ├── close_zotero / reopen_zotero
+│   └── ensure_zotero_closed
+│
+├── fill_tags.py        # 无标签条目扫描 + LLM 标签生成
+│   ├── fetch_no_tag_items
+│   └── generate_tags_for_item
+│
+├── graph_builder.py    # 知识图谱构建
+│   ├── SYNONYM_MAP / resolve_synonym  # 双语 + 中文近义词归一化
+│   ├── TagFilter                      # 高频标签过滤
+│   ├── build_graph                    # NetworkX 图构建
+│   ├── graph_stats / cluster          # 统计 + Leiden 聚类
+│   └── to_json / to_html / generate_report  # 导出
+│
+├── graph_visualize.py  # 从 graph.json 生成交互式 HTML（Pyvis）
+│
+└── graph/              # --build-graph 输出目录
+    ├── graph.json
+    ├── GRAPH_REPORT.md
+    ├── TAG_FILTER.md
+    └── graph_vis.html
 ```
