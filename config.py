@@ -56,8 +56,8 @@ def make_args(parsed: argparse.Namespace) -> SimpleNamespace:
         # --build-graph settings
         build_graph=parsed.build_graph,
         graph_output_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "graph"),
-        max_degree=20,
-        tag_fraction=0.30,
+        max_degree=15,
+        tag_fraction=0.20,
         # --fill-tags settings
         fill_tags=parsed.fill_tags,
         fill_tags_out="fill_tags.jsonl",

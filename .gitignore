@@ -13,6 +13,14 @@ venv/
 # Output data files
 *.jsonl
 
+# Generated graph output
+graph/
+lib/
+
+# macOS
+.DS_Store
+.python-version
+
 # Environment
 .env
 *.env
