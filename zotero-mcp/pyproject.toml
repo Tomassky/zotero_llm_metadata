@@ -20,19 +20,21 @@ classifiers = [
 ]
 dependencies = [
     "pyzotero>=1.5.0",
-    "mcp>=1.2.0",
+    "fastmcp>=2.14.0",
     "python-dotenv>=1.0.0",
     "markitdown",
     "pydantic>=2.0.0",
     "requests>=2.28.0",
-    "fastmcp>=2.14.0",
+    # Semantic search & embeddings (optional features)
     "chromadb>=0.6.0",
     "sentence-transformers>=2.2.0",
     "openai>=1.0.0",
     "google-genai>=0.7.0",
-    "pymupdf>=1.24.0",
-    "ebooklib>=0.18",
     "tiktoken>=0.7.0",
+    # PDF processing
+    "pymupdf>=1.24.0",
+    # EPUB support
+    "ebooklib>=0.18",
 ]
 
 [project.optional-dependencies]
@@ -43,10 +45,8 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/54yyyu/zotero-mcp"
-"Bug Tracker" = "https://github.com/54yyyu/zotero-mcp/issues"
-"Documentation" = "https://stevenyuyy.us/zotero-mcp/"
-"Changelog" = "https://github.com/54yyyu/zotero-mcp/blob/main/CHANGELOG.md"
+"Homepage" = "https://github.com/Tomassky/zotero_llm_metadata"
+"Bug Tracker" = "https://github.com/Tomassky/zotero_llm_metadata/issues"
 
 [project.scripts]
 zotero-mcp = "zotero_mcp.cli:main"

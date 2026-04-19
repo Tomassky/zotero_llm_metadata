@@ -17,3 +17,7 @@ ebooklib>=0.18
 
 # Image processing
 Pillow>=10.0.0
+
+# Graph building & visualization
+networkx>=3.0
+pyvis>=0.3.2
