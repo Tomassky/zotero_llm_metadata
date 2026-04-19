@@ -138,11 +138,6 @@ def get_web_zotero_client() -> zotero.Zotero | None:
     )
 
 
-def is_local_zotero_available() -> bool:
-    """Check if local Zotero instance is running and accessible."""
-    client = get_local_zotero_client()
-    return client is not None
-
 
 def format_item_metadata(item: dict[str, Any], include_abstract: bool = True) -> str:
     """

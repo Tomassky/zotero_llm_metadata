@@ -5,8 +5,6 @@ Provides direct access to Zotero's annotations without requiring PDF extraction.
 
 import json
 import requests
-import os
-import sys
 from typing import Dict, Any, List, Optional
 
 class ZoteroBetterBibTexAPI:

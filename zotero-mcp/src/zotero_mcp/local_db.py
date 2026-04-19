@@ -543,15 +543,3 @@ def get_local_zotero_reader() -> LocalZoteroReader | None:
         return None
 
 
-def is_local_db_available() -> bool:
-    """
-    Check if local Zotero database is available.
-
-    Returns:
-        True if local database can be accessed, False otherwise.
-    """
-    reader = get_local_zotero_reader()
-    if reader:
-        reader.close()
-        return True
-    return False
