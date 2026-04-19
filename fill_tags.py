@@ -135,7 +135,7 @@ def read_attachment_text(
     """读取 Zotero storage 中的附件文件内容。
 
     Args:
-        zotero_storage_dir: e.g. "/Users/tomas/Nextcloud/Zotero/storage"
+        zotero_storage_dir: e.g. "~/Nextcloud/Zotero/storage"
         attachment: dict with att_key, content_type, filename
 
     Returns:

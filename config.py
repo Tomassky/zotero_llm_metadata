@@ -33,7 +33,7 @@ def make_args(parsed: argparse.Namespace) -> SimpleNamespace:
         max_output_tokens=1200,
         write_mode="connector",
         connector_url="http://127.0.0.1:23119/connector/saveItems",
-        db_path="/Users/tomas/Nextcloud/Zotero/zotero.sqlite",
+        db_path=os.path.expanduser("~/Nextcloud/Zotero/zotero.sqlite"),
         cleanup_tag=False,
         print_prompt=True,
         print_response=True,
@@ -63,5 +63,5 @@ def make_args(parsed: argparse.Namespace) -> SimpleNamespace:
         fill_tags_out="fill_tags.jsonl",
         fill_tags_max_fulltext_chars=8000,
         fill_tags_max_output_tokens=500,
-        zotero_storage_dir=os.path.join(os.path.dirname(os.path.abspath("/Users/tomas/Nextcloud/Zotero/zotero.sqlite")), "storage"),
+        zotero_storage_dir=os.path.expanduser("~/Nextcloud/Zotero/storage"),
     )
