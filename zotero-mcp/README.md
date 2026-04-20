@@ -42,7 +42,6 @@
 ### 📝 Work with Annotations
 - Extract and search PDF annotations directly
 - Access Zotero's native annotations
-- Create and update notes and annotations
 
 ### 🔄 Easy Updates
 - **Smart update system** that detects your installation method (uv, pip, conda, pipx)
@@ -316,7 +315,6 @@ The first time you use PDF annotation features, the necessary tools will be auto
 - `zotero_get_collections`: List collections
 - `zotero_get_collection_items`: Get items in a collection
 - `zotero_get_tags`: List all tags
-- `zotero_get_recent`: Get recently added items
 - `zotero_search_by_tag`: Search your library using custom tag filters
 
 ### 📚 Content Tools
@@ -328,7 +326,6 @@ The first time you use PDF annotation features, the necessary tools will be auto
 - `zotero_get_annotations`: Get annotations (including direct PDF extraction)
 - `zotero_get_notes`: Retrieve notes from your Zotero library
 - `zotero_search_notes`: Search in notes and annotations (including PDF-extracted)
-- `zotero_create_note`: Create a new note for an item (beta feature)
 
 ### 🗺️ Knowledge Graph Tools
 
