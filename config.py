@@ -28,7 +28,7 @@ def make_args(parsed: argparse.Namespace) -> SimpleNamespace:
         max_tokens=20000,
         llm_base="https://coding.dashscope.aliyuncs.com/v1",
         model="qwen3.6-plus",
-        api_key="***REMOVED***",
+        api_key=os.getenv("DASHSCOPE_API_KEY", ""),
         out="metadata.jsonl",
         max_output_tokens=1200,
         write_mode="connector",
