@@ -10,6 +10,7 @@ build/
 .venv/
 venv/
 
+
 # Output data files
 *.jsonl
 
@@ -24,3 +25,6 @@ lib/
 # Environment
 .env
 *.env
+
+# LLM
+.claude/
