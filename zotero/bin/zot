@@ -1,0 +1,24 @@
+#!/bin/sh
+# Zotero skill CLI wrapper — read-only Zotero access + knowledge-graph queries.
+# Zotero 技能 CLI 包装脚本 —— 只读访问 Zotero 库 + 知识图谱查询。
+#
+# Self-contained: scripts (scripts/) and the virtualenv (.venv/) both live in this
+# skill directory. stdout = clean Markdown; stderr (incl. a harmless NumPy import
+# notice from markitdown) is redirected to a log so results stay clean.
+# 自包含：脚本目录 scripts/ 和虚拟环境 .venv/ 都在本技能目录内。stdout 为干净的
+# Markdown；stderr（含 markitdown 无害的 NumPy 导入提示）重定向到日志。
+#
+# Debug / 调试:  .claude/skills/zotero/.venv/bin/python scripts/cli.py <args>
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+SKILL_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+PY="$SKILL_DIR/.venv/bin/python"
+LOG="$SKILL_DIR/.zot-cli.log"
+
+if [ ! -x "$PY" ]; then
+    echo "Error: skill venv not found at $PY" >&2
+    echo "Create it / 创建: cd $SKILL_DIR && uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt" >&2
+    exit 1
+fi
+
+export ZOTERO_LOCAL=true
+exec "$PY" "$SKILL_DIR/scripts/cli.py" "$@" 2>>"$LOG"

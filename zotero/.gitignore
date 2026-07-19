@@ -1,0 +1,7 @@
+# Skill-local virtualenv and runtime artifacts
+.venv/
+.zot-cli.log
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store

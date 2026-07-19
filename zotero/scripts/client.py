@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from markitdown import MarkItDown
 from pyzotero import zotero
 
-from zotero_mcp.utils import format_creators
+from utils import format_creators
 
 # Load environment variables
 load_dotenv()
@@ -240,7 +240,7 @@ def generate_bibtex(item: dict[str, Any]) -> str:
 
     # Try Better BibTeX first
     try:
-        from zotero_mcp.better_bibtex_client import ZoteroBetterBibTexAPI
+        from better_bibtex_client import ZoteroBetterBibTexAPI
         bibtex = ZoteroBetterBibTexAPI()
 
         if bibtex.is_zotero_running():
