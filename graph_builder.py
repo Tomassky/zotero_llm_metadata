@@ -319,6 +319,7 @@ def build_graph(
             tags_raw=tags_raw,
             tags_normalized=tags_normalized,
             collections=collections,
+            abstract=item.get("abstract", "") or "",
             source_file="",
         )
         item_keys.add(key)
@@ -591,19 +592,62 @@ def score_all(G: nx.Graph, communities: dict[int, list[str]]) -> dict[int, float
 
 
 def label_communities(G: nx.Graph, communities: dict[int, list[str]]) -> dict[int, str]:
-    labels = {}
+    """Label each community by its most *distinctive* tags.
+
+    Ranking a tag purely by in-community frequency produces near-duplicate labels
+    (e.g. "网络安全 / 渗透测试" vs "渗透测试 / 网络安全") because globally common tags
+    dominate every community. Instead we weight frequency by an inverse
+    community-frequency (idf) factor, so a tag concentrated in few communities
+    scores higher than one spread across many. Labels are then de-duplicated by
+    swapping in the next distinctive tag (or, as a last resort, the community id).
+    """
+    import math
+
+    # Per-community tag counts + document frequency (in how many communities a tag appears).
+    comm_tag_counts: dict[int, dict[str, int]] = {}
+    doc_freq: dict[str, int] = {}
     for cid, members in communities.items():
-        tag_counts: dict[str, int] = {}
+        counts: dict[str, int] = {}
         for node in members:
             if node not in G.nodes:
                 continue
             for tag in G.nodes[node].get("tags_normalized", []):
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        if not tag_counts:
-            labels[cid] = f"Community {cid}"
+                counts[tag] = counts.get(tag, 0) + 1
+        comm_tag_counts[cid] = counts
+        for tag in counts:
+            doc_freq[tag] = doc_freq.get(tag, 0) + 1
+
+    n_comms = max(len(communities), 1)
+    labels: dict[int, str] = {}
+    used: set[str] = set()
+
+    # Label larger communities first so their (more informative) labels win ties.
+    for cid in sorted(communities, key=lambda c: -len(communities[c])):
+        counts = comm_tag_counts.get(cid, {})
+        if not counts:
+            label = f"Community {cid}"
+            labels[cid] = label
+            used.add(label)
             continue
-        top_tags = sorted(tag_counts.items(), key=lambda x: -x[1])[:2]
-        labels[cid] = " / ".join(t for t, _ in top_tags)
+
+        scored = sorted(
+            counts.items(),
+            key=lambda kv: (kv[1] * math.log(1 + n_comms / doc_freq.get(kv[0], 1)), kv[1]),
+            reverse=True,
+        )
+        top = [t for t, _ in scored]
+
+        label = " / ".join(top[:2])
+        i = 2
+        while label in used and i < len(top):
+            label = " / ".join([top[0], top[i]])
+            i += 1
+        if label in used:
+            label = f"{label} (#{cid})"
+
+        labels[cid] = label
+        used.add(label)
+
     return labels
 
 
@@ -760,6 +804,7 @@ def export_report(
                 "label": G.nodes[key].get("label", key),
                 "item_type": G.nodes[key].get("item_type", ""),
                 "tags_normalized": G.nodes[key].get("tags_normalized", []),
+                "abstract": (G.nodes[key].get("abstract", "") or "")[:500],
                 "collections": G.nodes[key].get("collections", []),
                 "community": node_community.get(key),
                 "community_label": community_labels.get(node_community.get(key, -1), "Unknown"),
