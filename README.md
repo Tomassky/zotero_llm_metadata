@@ -50,11 +50,19 @@ pip install httpx pypdf pdfminer.six python-docx openpyxl python-pptx \
 
 ## 配置
 
+调用 LLM 需要提供 API Key，**通过环境变量 `DASHSCOPE_API_KEY` 读取**（`config.py` 中 `api_key=os.getenv("DASHSCOPE_API_KEY", "")`）。请勿将密钥硬编码进源码或提交到版本库。
+
 ```bash
+# 当前会话临时设置
 export DASHSCOPE_API_KEY=sk-xxxx
+
+# 或写入 shell 配置持久化（zsh 示例）
+echo 'export DASHSCOPE_API_KEY=sk-xxxx' >> ~/.zshrc && source ~/.zshrc
 ```
 
-其他参数（Zotero API 地址、模型名称、数据库路径、VL 模型等）在 `__main__.py` 的 `_make_args()` 中直接修改。
+未设置该变量时，凡需要调用 LLM 的模式都会因 Key 为空而失败（`--dry-run` 不受影响）。
+
+其他参数（Zotero API 地址、模型名称、数据库路径、VL 模型等）在 `config.py` 的 `make_args()` 中直接修改。
 
 ## 使用
 
