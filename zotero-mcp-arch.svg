@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" style="background-color: #ffffff; font-family: sans-serif;">
+  <defs>
+    <marker id="arrow_2563eb" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker>
+    <marker id="arrow_059669" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#059669"/></marker>
+    <marker id="arrow_ea580c" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/></marker>
+    <marker id="arrow_9333ea" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#9333ea"/></marker>
+    <marker id="arrow_6b7280" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#6b7280"/></marker>
+    <marker id="arrow_0284c7" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#0284c7"/></marker>
+    <marker id="arrow_db2777" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#db2777"/></marker>
+  </defs>
+  <text x="480.0" y="40" font-family="sans-serif" font-size="24" font-weight="bold" fill="#1e293b" text-anchor="middle">Real-time AI Integration (zotero-mcp)</text>
+    <rect x="40" y="80" width="880" height="460" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="8,4" opacity="0.6"/>
+    <text x="56" y="104" font-family="sans-serif" font-size="14" font-weight="bold" fill="#64748b">Real-time AI Assistant Server (zotero-mcp)</text>
+    <path d="M 150,280 L 280,280" stroke="#9333ea" stroke-width="2" fill="none"  marker-end="url(#arrow_9333ea)"/>
+    <rect x="185" y="270" width="60" height="20" fill="#ffffff" opacity="0.9" rx="4"/>
+    <text x="215" y="280" font-family="sans-serif" font-size="11" fill="#9333ea" text-anchor="middle" dominant-baseline="middle">MCP Protocol</text>
+
+    <path d="M 420,220 L 510,150" stroke="#2563eb" stroke-width="2" fill="none"  marker-end="url(#arrow_2563eb)"/>
+
+    <path d="M 420,260 L 510,250" stroke="#2563eb" stroke-width="2" fill="none"  marker-end="url(#arrow_2563eb)"/>
+
+    <path d="M 420,300 L 510,350" stroke="#2563eb" stroke-width="2" fill="none"  marker-end="url(#arrow_2563eb)"/>
+
+    <path d="M 420,340 L 510,450" stroke="#2563eb" stroke-width="2" fill="none"  marker-end="url(#arrow_2563eb)"/>
+
+    <path d="M 650,150 L 730,150" stroke="#059669" stroke-width="2" fill="none"  marker-end="url(#arrow_059669)"/>
+    <rect x="660" y="140" width="60" height="20" fill="#ffffff" opacity="0.9" rx="4"/>
+    <text x="690" y="150" font-family="sans-serif" font-size="11" fill="#059669" text-anchor="middle" dominant-baseline="middle">Query</text>
+
+    <path d="M 650,250 L 730,250" stroke="#059669" stroke-width="2" fill="none"  marker-end="url(#arrow_059669)"/>
+    <rect x="660" y="240" width="60" height="20" fill="#ffffff" opacity="0.9" rx="4"/>
+    <text x="690" y="250" font-family="sans-serif" font-size="11" fill="#059669" text-anchor="middle" dominant-baseline="middle">Read</text>
+
+    <path d="M 650,350 L 730,350" stroke="#ea580c" stroke-width="2" fill="none"  marker-end="url(#arrow_ea580c)"/>
+    <rect x="660" y="340" width="60" height="20" fill="#ffffff" opacity="0.9" rx="4"/>
+    <text x="690" y="350" font-family="sans-serif" font-size="11" fill="#ea580c" text-anchor="middle" dominant-baseline="middle">HTTP/Local</text>
+
+    <path d="M 650,450 L 800,400" stroke="#ea580c" stroke-width="2" fill="none"  marker-end="url(#arrow_ea580c)"/>
+    <rect x="690" y="420" width="60" height="20" fill="#ffffff" opacity="0.9" rx="4"/>
+    <text x="720" y="430" font-family="sans-serif" font-size="11" fill="#ea580c" text-anchor="middle" dominant-baseline="middle">Extract</text>
+
+    <rect x="50.0" y="250.0" width="100" height="60" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="2"/>
+    <text x="100" y="270" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">AI Assistant</text>
+    <text x="100" y="290" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >(Claude/ChatGPT)</text>
+
+    <rect x="280.0" y="200.0" width="140" height="160" rx="8" fill="#dce1ff" stroke="#4f46e5" stroke-width="2"/>
+    <text x="350" y="270" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">Zotero MCP Server</text>
+    <text x="350" y="290" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >Exposes Tools to AI</text>
+
+    <rect x="510.0" y="120.0" width="140" height="60" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="580" y="140" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">Semantic Search</text>
+    <text x="580" y="160" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >Vector Queries</text>
+
+    <rect x="510.0" y="220.0" width="140" height="60" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="580" y="240" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">Graph Explorer</text>
+    <text x="580" y="260" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >Community Context</text>
+
+    <rect x="510.0" y="320.0" width="140" height="60" rx="8" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+    <text x="580" y="340" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">Content &amp; Metadata</text>
+    <text x="580" y="360" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >Search &amp; Retrieval</text>
+
+    <rect x="510.0" y="420.0" width="140" height="60" rx="8" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+    <text x="580" y="440" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">PDF Annotations</text>
+    <text x="580" y="460" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >Parse Highlights</text>
+
+    <path d="M 730.0,110.0 L 730.0,190.0 A 70.0,10 0 0,0 870.0,190.0 L 870.0,110.0 Z" fill="#fdf4ff" stroke="#c026d3" stroke-width="2"/>
+    <ellipse cx="800" cy="110.0" rx="70.0" ry="10" fill="#fdf4ff" stroke="#c026d3" stroke-width="2"/>
+    <text x="800" y="145" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">ChromaDB</text>
+    <text x="800" y="165" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >(Semantic DB)</text>
+
+    <rect x="730.0" y="220.0" width="140" height="60" rx="8" fill="#f1f5f9" stroke="#4b5563" stroke-width="2"/>
+    <text x="800" y="240" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">graph.json</text>
+    <text x="800" y="260" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >From llm_metadata</text>
+
+    <path d="M 730.0,320.0 L 730.0,400.0 A 70.0,10 0 0,0 870.0,400.0 L 870.0,320.0 Z" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+    <ellipse cx="800" cy="320.0" rx="70.0" ry="10" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+    <text x="800" y="355" font-family="sans-serif" font-size="14" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" font-weight="bold">Zotero Application</text>
+    <text x="800" y="375" font-family="sans-serif" font-size="12" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" >(API &amp; Local DB)</text>
+
+</svg>
