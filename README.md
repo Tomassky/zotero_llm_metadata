@@ -1,6 +1,10 @@
 # zotero_llm_metadata
 
-通过 LLM 自动为 Zotero 中的条目提取元数据、补充摘要。
+通过 LLM 自动为 Zotero 中的条目提取元数据、补充摘要、生成标签，并在此基础上构建可查询的知识图谱。项目附带一个 **Claude Code 技能**（`zotero/`），可用自然语言只读查询文献库与知识图谱。
+
+![总体架构：批处理增强流水线 + 查询技能](architecture.png)
+
+> 总体架构：左侧为**批处理增强流水线**（`zotero_llm_metadata`），右侧为**查询技能**（`zotero/`，Claude Code Skill），两者共享 Zotero 库、本地文件与图谱输出。
 
 ## 功能
 
@@ -9,6 +13,7 @@
 - 为无标签条目批量生成标签（读取附件全文，调用 LLM 输出结构化 JSON 标签列表）
 - 基于集合与标签关系构建知识图谱，运行 Leiden 社区检测，导出可交互的 HTML 可视化
 - 以上元数据/摘要步骤均自动管理 Zotero 进程（写入 SQLite 前关闭，写入完成后重启）
+- 提供 **Zotero 技能**（Claude Code Skill）：以自然语言只读查询文献库（实时 API）与知识图谱（离线快照）
 
 **支持格式：**
 
@@ -79,6 +84,10 @@ python graph_visualize.py          # 生成 graph/graph_vis.html
 
 ## 运行流程
 
+![批处理流水线细化图](zotero-llm-metadata-arch.png)
+
+> 批处理流水线细化：上半部分为 **LLM 增强**（元数据 / 摘要 / 标签），下半部分为**知识图谱构建**；写入 SQLite 前后自动关闭并重启 Zotero。
+
 ### `--fill-metadata-abstract`
 
 ```
@@ -121,6 +130,38 @@ python graph_visualize.py          # 生成 graph/graph_vis.html
    graph.json（节点/边/社区数据）、GRAPH_REPORT.md（分析报告）、TAG_FILTER.md
 ③ 可选：运行 graph_visualize.py 生成交互式 HTML（需 pyvis）
 ```
+
+## Zotero 技能（Claude Code Skill）
+
+`zotero/` 目录是一个**自包含的 Claude Code 技能**，让你用自然语言只读查询文献库与知识图谱（例如「搜我 Zotero 里关于红队/LLM 的文献」「哪些论文连接了红队和大语言模型」「显示社区结构」「关于 MCP 最核心的文献是哪篇」）。
+
+所有操作都通过一个包装脚本 `zotero/bin/zot <subcommand>`，向 stdout 输出 Markdown。技能分两类命令：
+
+**实时命令**（需 Zotero 桌面程序打开，走本地 API `localhost:23119`）：
+
+| 命令 | 作用 |
+|------|------|
+| `zot search "<query>" [--qmode everything]` | 搜索条目（中文/内容/标签查询请加 `--qmode everything`） |
+| `zot tag-search "<tag>" ...` | 按标签检索（取交集，支持 `OR` / `-` 排除） |
+| `zot metadata <key>` / `fulltext <key>` | 精确元数据 / 全文 |
+| `zot collections` / `collection-items <key>` | 集合层级 / 集合内条目 |
+| `zot children <key>` / `annotations` / `notes` | 附件与笔记 / 标注 / 笔记 |
+| `zot advanced-search '<conditions-json>'` | 结构化条件检索 |
+
+**图谱命令**（完全离线，读取 `graph/graph.json`，需先 `--build-graph`）：
+
+| 命令 | 作用 |
+|------|------|
+| `zot graph-search "<query>"` | 关键词检索（含同义词归一）+ 关联社区 |
+| `zot graph-community [<label>]` | 社区概览 / 成员 |
+| `zot graph-explore <key>` / `graph-neighbors <key>` | 单条目上下文 / 邻居 |
+| `zot graph-bridge "<A>" "<B>"` | 连接两个主题的桥接条目 |
+| `zot graph-central [--community <label>]` | 最核心/连接最多的枢纽条目 |
+| `zot graph-path <keyA> <keyB>` | 两条目间最短路径 |
+
+典型工作流通过 **8 位 item key** 串联：`graph-search` 找到 key → `graph-explore` 看社区/邻居 → `metadata` / `fulltext` 取精确内容。完整命令参考见 [`zotero/SKILL.md`](zotero/SKILL.md)。
+
+> 技能自带独立虚拟环境（`zotero/.venv`，gitignored），外部依赖仅 `graph/graph.json`（由 `--build-graph` 生成）与 `graph_builder.py`（复用其同义词归一化）。技能同时镜像在 `.claude/skills/zotero/`。
 
 ## 输出文件
 
@@ -202,9 +243,19 @@ zotero_llm_metadata/
 │
 ├── graph_visualize.py  # 从 graph.json 生成交互式 HTML（Pyvis）
 │
-└── graph/              # --build-graph 输出目录
-    ├── graph.json
-    ├── GRAPH_REPORT.md
-    ├── TAG_FILTER.md
-    └── graph_vis.html
+├── graph/              # --build-graph 输出目录（gitignored）
+│   ├── graph.json
+│   ├── GRAPH_REPORT.md
+│   ├── TAG_FILTER.md
+│   └── graph_vis.html
+│
+├── zotero/             # Claude Code 技能（自包含，镜像到 .claude/skills/zotero/）
+│   ├── SKILL.md        # 技能说明与命令参考
+│   ├── bin/zot         # 包装脚本（自动定位 venv，设置 ZOTERO_LOCAL）
+│   ├── scripts/        # CLI 代码（cli.py + client / local_db / graph_query 等模块）
+│   ├── requirements.txt
+│   └── .venv/          # 技能本地虚拟环境（gitignored）
+│
+├── architecture.png    # 总体架构图（批处理流水线 + 查询技能）
+└── zotero-llm-metadata-arch.png  # 批处理流水线细化图
 ```
