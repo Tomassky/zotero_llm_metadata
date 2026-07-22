@@ -40,21 +40,31 @@ from .zotero.process import ensure_zotero_closed, is_zotero_running, reopen_zote
 # ---------------------------------------------------------------------------
 
 def run_dry_run(args: SimpleNamespace, client: httpx.Client) -> None:
-    items = fetch_no_metadata_items(
-        client=client,
-        base=args.base,
-        list_path=args.no_meta_list_path,
-        timeout=args.timeout,
-        limit=args.limit,
-        page_size=args.no_meta_page_size,
-        max_pages=args.no_meta_max_pages,
-    )
-    if items:
-        print(f"[DRY RUN] {len(items)} item(s) without metadata:")
-        for i, (filename, key) in enumerate(items, 1):
-            print(f"  {i:3}. [{key}] {filename}")
+    # The no-metadata / no-abstract scans hit Zotero's local API; the no-tag scan
+    # reads SQLite directly. Guard each independently so a scan that fails (e.g.
+    # the Zotero app / local API on :23119 is not running) degrades gracefully
+    # instead of aborting the whole preview.
+    _api_hint = "is the Zotero app running with the local API on :23119?"
+
+    try:
+        items = fetch_no_metadata_items(
+            client=client,
+            base=args.base,
+            list_path=args.no_meta_list_path,
+            timeout=args.timeout,
+            limit=args.limit,
+            page_size=args.no_meta_page_size,
+            max_pages=args.no_meta_max_pages,
+        )
+    except Exception as e:
+        print(f"[DRY RUN] no-metadata scan failed ({_api_hint}): {e}", file=sys.stderr)
     else:
-        print("[DRY RUN] No standalone no-metadata attachments found.")
+        if items:
+            print(f"[DRY RUN] {len(items)} item(s) without metadata:")
+            for i, (filename, key) in enumerate(items, 1):
+                print(f"  {i:3}. [{key}] {filename}")
+        else:
+            print("[DRY RUN] No standalone no-metadata attachments found.")
 
     try:
         no_abstract = fetch_no_abstract_items(
@@ -69,15 +79,14 @@ def run_dry_run(args: SimpleNamespace, client: httpx.Client) -> None:
             include_attachments=args.fill_abstracts_include_attachments,
         )
     except Exception as e:
-        print(f"[DRY RUN] no-abstract scan failed: {e}", file=sys.stderr)
-        return
-
-    if no_abstract:
-        print(f"\n[DRY RUN] {len(no_abstract)} item(s) without abstractNote:")
-        for i, row in enumerate(no_abstract, 1):
-            print(f"  {i:3}. [{row['key']}] ({row['itemType']}) {row['title'] or '(no title)'}")
+        print(f"[DRY RUN] no-abstract scan failed ({_api_hint}): {e}", file=sys.stderr)
     else:
-        print("\n[DRY RUN] No items without abstractNote found.")
+        if no_abstract:
+            print(f"\n[DRY RUN] {len(no_abstract)} item(s) without abstractNote:")
+            for i, row in enumerate(no_abstract, 1):
+                print(f"  {i:3}. [{row['key']}] ({row['itemType']}) {row['title'] or '(no title)'}")
+        else:
+            print("\n[DRY RUN] No items without abstractNote found.")
 
     # Also list items without tags (from SQLite, no API needed)
     from .tags import fetch_no_tag_items
