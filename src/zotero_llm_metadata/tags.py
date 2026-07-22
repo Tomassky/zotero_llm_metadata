@@ -17,7 +17,7 @@ import os
 import sqlite3
 from typing import Any
 
-from file_extract import (
+from .extract import (
     detect_file_type,
     extract_csv_text, extract_excel_text, extract_epub_text, extract_html_text,
     extract_json_text, extract_markdown_text, extract_odt_text,

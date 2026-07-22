@@ -7,8 +7,8 @@ from urllib.parse import quote
 
 import httpx
 
-from config import LLM_RETRIES, LLM_BACKOFF, LLM_MAX_BACKOFF
-from file_extract import (
+from .config import LLM_RETRIES, LLM_BACKOFF, LLM_MAX_BACKOFF
+from .extract import (
     detect_file_type,
     extract_csv_text, extract_excel_text, extract_epub_text, extract_html_text,
     extract_json_text, extract_markdown_text, extract_odt_text,
@@ -16,23 +16,23 @@ from file_extract import (
     extract_txt_text, extract_word_text,
     read_file_url, resize_and_encode_image, truncate_for_print, truncate_to_token_limit,
 )
-from llm_client import (
+from .llm import (
     build_abstract_prompt, build_prompt, build_evidence_text,
     build_tags_prompt,
     extract_json, extract_text_from_image,
     generate_abstract_for_item, request_llm_with_retry,
 )
-from zotero_api import (
+from .zotero.api import (
     build_item_data, fetch_no_abstract_items, fetch_no_metadata_items,
     find_local_item_by_tag, get_child_attachment_keys,
     get_inherited_collections, get_local_item_data, join_url, normalize_tags,
 )
-from zotero_db import (
+from .zotero.db import (
     apply_abstracts_from_mappings, apply_tags_from_mappings, cleanup_llm_tags,
     load_abstract_mappings_from_jsonl, load_repair_mappings_from_jsonl,
     load_tags_mappings_from_jsonl, reparent_attachments_in_db,
 )
-from zotero_process import ensure_zotero_closed, is_zotero_running, reopen_zotero
+from .zotero.process import ensure_zotero_closed, is_zotero_running, reopen_zotero
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def run_dry_run(args: SimpleNamespace, client: httpx.Client) -> None:
         print("\n[DRY RUN] No items without abstractNote found.")
 
     # Also list items without tags (from SQLite, no API needed)
-    from fill_tags import fetch_no_tag_items
+    from .tags import fetch_no_tag_items
     try:
         no_tag_items = fetch_no_tag_items(args.db_path)
     except Exception as e:
@@ -602,7 +602,7 @@ def run_build_graph(args: SimpleNamespace) -> None:
     Pipeline: fetch → build_graph → cluster → validate → analyze → export.
     No Zotero instance needed — reads directly from SQLite.
     """
-    from graph_builder import (
+    from .graph.builder import (
         TagFilter,
         build_graph,
         cluster,
@@ -700,8 +700,8 @@ def run_fill_tags(args: SimpleNamespace, client: httpx.Client) -> None:
 
 def _run_generate_tags(args: SimpleNamespace, client: httpx.Client) -> None:
     """扫描无 tag 条目 → 读取全文 → LLM 生成 tag → 存 jsonl。"""
-    from fill_tags import fetch_no_tag_items, get_best_attachment_text, build_evidence_for_item
-    from zotero_api import join_url
+    from .tags import fetch_no_tag_items, get_best_attachment_text, build_evidence_for_item
+    from .zotero.api import join_url
 
     items = fetch_no_tag_items(args.db_path)
     if not items:

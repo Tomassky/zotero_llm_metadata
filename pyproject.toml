@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zotero-llm-metadata"
+version = "0.1.0"
+description = "用 LLM 为 Zotero 条目补全元数据/摘要/标签，并构建可查询的知识图谱"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+
+# httpx 为核心依赖；文本提取与图谱相关依赖按需通过 extras 安装。
+dependencies = [
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+# 多格式文本提取 + 图片处理
+extract = [
+    "pypdf>=4.0.0",
+    "pdfminer.six>=20221105",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "python-pptx>=1.0.0",
+    "odfpy>=1.4.0",
+    "striprtf>=0.0.26",
+    "ebooklib>=0.18",
+    "Pillow>=10.0.0",
+]
+# 知识图谱构建与可视化
+graph = [
+    "networkx>=3.0",
+    "pyvis>=0.3.2",
+]
+# 全部功能
+all = [
+    "zotero-llm-metadata[extract,graph]",
+]
+
+[project.scripts]
+zotero-llm-metadata = "zotero_llm_metadata.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

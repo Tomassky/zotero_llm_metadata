@@ -1,6 +1,13 @@
 import argparse
 import os
+from pathlib import Path
 from types import SimpleNamespace
+
+
+# Repository root = two levels above this file (src/zotero_llm_metadata/config.py).
+# Build artifacts (graph/, *.jsonl) live here so they don't collide with the
+# `graph` code subpackage that sits next to this module.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +62,7 @@ def make_args(parsed: argparse.Namespace) -> SimpleNamespace:
         image_max_long_side=1280,
         # --build-graph settings
         build_graph=parsed.build_graph,
-        graph_output_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "graph"),
+        graph_output_dir=str(REPO_ROOT / "graph"),
         max_degree=15,
         tag_fraction=0.20,
         # --fill-tags settings

@@ -14,9 +14,9 @@ venv/
 # Output data files
 *.jsonl
 
-# Generated graph output
-graph/
-lib/
+# Generated graph output (repo-root only — not the src graph/ code subpackage)
+/graph/
+/lib/
 
 # macOS
 .DS_Store

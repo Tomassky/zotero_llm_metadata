@@ -1,10 +1,10 @@
 # zotero_llm_metadata
 
-通过 LLM 自动为 Zotero 中的条目提取元数据、补充摘要、生成标签，并在此基础上构建可查询的知识图谱。项目附带一个 **Claude Code 技能**（`zotero/`），可用自然语言只读查询文献库与知识图谱。
+通过 LLM 自动为 Zotero 中的条目提取元数据、补充摘要、生成标签，并在此基础上构建可查询的知识图谱。项目附带一个 **Claude Code 技能**（`skill/`），可用自然语言只读查询文献库与知识图谱。
 
-![总体架构：批处理增强流水线 + 查询技能](architecture.png)
+![总体架构：批处理增强流水线 + 查询技能](docs/architecture.png)
 
-> 总体架构：左侧为**批处理增强流水线**（`zotero_llm_metadata`），右侧为**查询技能**（`zotero/`，Claude Code Skill），两者共享 Zotero 库、本地文件与图谱输出。
+> 总体架构：左侧为**批处理增强流水线**（`src/zotero_llm_metadata/`），右侧为**查询技能**（`skill/`，Claude Code Skill），两者共享 Zotero 库、本地文件与图谱输出。
 
 ## 功能
 
@@ -27,11 +27,25 @@
 | 文字处理 | `.odt` |
 | 图片 | `.png` / `.jpg` / `.jpeg` / `.gif` / `.webp`（需配置 `vl_model`） |
 
-## 依赖
+## 安装
+
+项目采用标准 `src/` 包布局，通过 `pip install -e .` 安装为可导入包（提供 `python -m zotero_llm_metadata` 与 `zotero-llm-metadata` 两种入口）：
+
+```bash
+# 核心（仅 httpx）
+pip install -e .
+
+# 按功能装可选依赖
+pip install -e ".[extract]"   # 多格式文本提取 + 图片处理
+pip install -e ".[graph]"     # 知识图谱构建与可视化
+pip install -e ".[all]"       # 全部功能
+```
+
+也可直接按需单独安装底层库：
 
 ```bash
 pip install httpx pypdf pdfminer.six python-docx openpyxl python-pptx \
-            striprtf ebooklib odfpy Pillow
+            striprtf ebooklib odfpy Pillow networkx pyvis
 ```
 
 > 除 `httpx` 外均为可选依赖，按需安装：
@@ -50,7 +64,7 @@ pip install httpx pypdf pdfminer.six python-docx openpyxl python-pptx \
 
 ## 配置
 
-调用 LLM 需要提供 API Key，**通过环境变量 `DASHSCOPE_API_KEY` 读取**（`config.py` 中 `api_key=os.getenv("DASHSCOPE_API_KEY", "")`）。请勿将密钥硬编码进源码或提交到版本库。
+调用 LLM 需要提供 API Key，**通过环境变量 `DASHSCOPE_API_KEY` 读取**（`src/zotero_llm_metadata/config.py` 中 `api_key=os.getenv("DASHSCOPE_API_KEY", "")`）。请勿将密钥硬编码进源码或提交到版本库。
 
 ```bash
 # 当前会话临时设置
@@ -62,37 +76,37 @@ echo 'export DASHSCOPE_API_KEY=sk-xxxx' >> ~/.zshrc && source ~/.zshrc
 
 未设置该变量时，凡需要调用 LLM 的模式都会因 Key 为空而失败（`--dry-run` 不受影响）。
 
-其他参数（Zotero API 地址、模型名称、数据库路径、VL 模型等）在 `config.py` 的 `make_args()` 中直接修改。
+其他参数（Zotero API 地址、模型名称、数据库路径、VL 模型等）在 `src/zotero_llm_metadata/config.py` 的 `make_args()` 中直接修改。
 
 ## 使用
 
 ```bash
-# 在 zotero_llm_metadata/ 同级目录执行
+# 先 pip install -e . ，然后在仓库根目录执行（产物 graph/ 与 *.jsonl 落在根目录）
 
 # 预览：列出无元数据附件 + 缺摘要条目，不调用 LLM
-python __main__.py --dry-run
+python -m zotero_llm_metadata --dry-run
 
 # 全流程元数据：提取元数据 → 写入 Zotero → 自动 repair → 重启 Zotero
-python __main__.py --fill-metadata-abstract
+python -m zotero_llm_metadata --fill-metadata-abstract
 
 # 全流程摘要：生成 abstractNote → 关闭 Zotero → 写入数据库 → 重启 Zotero
-python __main__.py --fill-abstracts
+python -m zotero_llm_metadata --fill-abstracts
 
 # 批量生成标签：扫描无 tag 条目 → 读取附件全文 → LLM 生成标签
-python __main__.py --fill-tags
+python -m zotero_llm_metadata --fill-tags
 
 # 构建知识图谱：从 SQLite 读取条目 → 构建图 → 社区检测 → 导出 graph/
-python __main__.py --build-graph
+python -m zotero_llm_metadata --build-graph
 
 # 可视化知识图谱（需先运行 --build-graph）
-python graph_visualize.py          # 生成 graph/graph_vis.html
+python -m zotero_llm_metadata.graph.visualize   # 生成 graph/graph_vis.html
 ```
 
-不带参数运行显示帮助信息。
+> 安装后也可用等价的控制台入口 `zotero-llm-metadata --dry-run` 等。不带参数运行显示帮助信息。
 
 ## 运行流程
 
-![批处理流水线细化图](zotero-llm-metadata-arch.png)
+![批处理流水线细化图](docs/zotero-llm-metadata-arch.png)
 
 > 批处理流水线细化：上半部分为 **LLM 增强**（元数据 / 摘要 / 标签），下半部分为**知识图谱构建**；写入 SQLite 前后自动关闭并重启 Zotero。
 
@@ -136,14 +150,14 @@ python graph_visualize.py          # 生成 graph/graph_vis.html
    → Leiden 社区检测
 ② 输出到 graph/ 目录
    graph.json（节点/边/社区数据）、GRAPH_REPORT.md（分析报告）、TAG_FILTER.md
-③ 可选：运行 graph_visualize.py 生成交互式 HTML（需 pyvis）
+③ 可选：运行 `python -m zotero_llm_metadata.graph.visualize` 生成交互式 HTML（需 pyvis）
 ```
 
 ## Zotero 技能（Claude Code Skill）
 
-`zotero/` 目录是一个**自包含的 Claude Code 技能**，让你用自然语言只读查询文献库与知识图谱（例如「搜我 Zotero 里关于红队/LLM 的文献」「哪些论文连接了红队和大语言模型」「显示社区结构」「关于 MCP 最核心的文献是哪篇」）。
+`skill/` 目录是一个**自包含的 Claude Code 技能**，让你用自然语言只读查询文献库与知识图谱（例如「搜我 Zotero 里关于红队/LLM 的文献」「哪些论文连接了红队和大语言模型」「显示社区结构」「关于 MCP 最核心的文献是哪篇」）。
 
-所有操作都通过一个包装脚本 `zotero/bin/zot <subcommand>`，向 stdout 输出 Markdown。技能分两类命令：
+所有操作都通过一个包装脚本 `skill/bin/zot <subcommand>`（已安装副本为 `.claude/skills/zotero/bin/zot`），向 stdout 输出 Markdown。技能分两类命令：
 
 **实时命令**（需 Zotero 桌面程序打开，走本地 API `localhost:23119`）：
 
@@ -167,9 +181,9 @@ python graph_visualize.py          # 生成 graph/graph_vis.html
 | `zot graph-central [--community <label>]` | 最核心/连接最多的枢纽条目 |
 | `zot graph-path <keyA> <keyB>` | 两条目间最短路径 |
 
-典型工作流通过 **8 位 item key** 串联：`graph-search` 找到 key → `graph-explore` 看社区/邻居 → `metadata` / `fulltext` 取精确内容。完整命令参考见 [`zotero/SKILL.md`](zotero/SKILL.md)。
+典型工作流通过 **8 位 item key** 串联：`graph-search` 找到 key → `graph-explore` 看社区/邻居 → `metadata` / `fulltext` 取精确内容。完整命令参考见 [`skill/SKILL.md`](skill/SKILL.md)。
 
-> 技能自带独立虚拟环境（`zotero/.venv`，gitignored），外部依赖仅 `graph/graph.json`（由 `--build-graph` 生成）与 `graph_builder.py`（复用其同义词归一化）。技能同时镜像在 `.claude/skills/zotero/`。
+> 技能自带独立虚拟环境（`skill/.venv`，gitignored），唯一外部依赖为 `graph/graph.json`（由 `--build-graph` 生成，可用 `ZOTERO_GRAPH_JSON` 覆盖）；同义词归一已内置于 `skill/scripts/synonyms.py`（`graph/builder.py` 映射表的副本），不再 import 仓库代码。技能同时镜像在 Claude Code 实际加载的 `.claude/skills/zotero/`。
 
 ## 输出文件
 
@@ -181,89 +195,71 @@ python graph_visualize.py          # 生成 graph/graph_vis.html
 | `graph/graph.json` | 知识图谱数据（节点、边、社区） |
 | `graph/GRAPH_REPORT.md` | 图谱分析报告（社区概览、关键节点、模块度） |
 | `graph/TAG_FILTER.md` | 被过滤掉的高频标签列表 |
-| `graph/graph_vis.html` | 交互式可视化（由 `graph_visualize.py` 生成） |
+| `graph/graph_vis.html` | 交互式可视化（由 `graph/visualize.py` 生成） |
+| `lib/` | 可视化 HTML 依赖的 pyvis 本地资源（vis-network / tom-select 的 JS/CSS），随 `graph_vis.html` 一并生成 |
 
 ## 模块说明
+
+所有流水线代码位于 `src/zotero_llm_metadata/` 包内：
 
 | 文件 | 包含内容 |
 |------|---------|
 | `__main__.py` | 入口、五种运行模式（dry-run / fill-metadata-abstract / fill-abstracts / fill-tags / build-graph） |
-| `file_extract.py` | 多格式文本提取（PDF / Word / Excel / PowerPoint / HTML / Markdown / TXT / CSV / JSON / RTF / EPUB / ODT）；图片缩放与 base64 编码 |
-| `llm_client.py` | LLM 调用（含 retry）、JSON 解析（含控制字符修复）、Prompt 构建、VL 图片识别 |
-| `zotero_api.py` | Zotero HTTP API 交互、元数据工具函数 |
-| `zotero_db.py` | Zotero SQLite 操作（reparent、apply abstracts、tag cleanup） |
-| `zotero_process.py` | Zotero 进程管理（检测、关闭、重启） |
-| `fill_tags.py` | 无标签条目扫描、全文提取、LLM 标签生成 |
-| `graph_builder.py` | 知识图谱构建（读取 SQLite、同义词归一化、建边、度数过滤、Leiden 聚类、JSON/HTML/报告导出） |
-| `graph_visualize.py` | 从 `graph/graph.json` 生成交互式 HTML（Pyvis，按社区着色） |
+| `config.py` | 参数集中管理（模型、路径、图谱参数等） |
+| `runners.py` | 各模式的顶层调度逻辑 |
+| `extract.py` | 多格式文本提取（PDF / Word / Excel / PowerPoint / HTML / Markdown / TXT / CSV / JSON / RTF / EPUB / ODT）；图片缩放与 base64 编码 |
+| `llm.py` | LLM 调用（含 retry）、JSON 解析（含控制字符修复）、Prompt 构建、VL 图片识别 |
+| `tags.py` | 无标签条目扫描、全文提取、LLM 标签生成 |
+| `zotero/api.py` | Zotero HTTP API 交互、元数据工具函数 |
+| `zotero/db.py` | Zotero SQLite 操作（reparent、apply abstracts、tag cleanup） |
+| `zotero/process.py` | Zotero 进程管理（检测、关闭、重启） |
+| `graph/builder.py` | 知识图谱构建（读取 SQLite、同义词归一化、建边、度数过滤、Leiden 聚类、JSON/报告导出） |
+| `graph/visualize.py` | 从 `graph/graph.json` 生成交互式 HTML（Pyvis，按社区着色） |
 
 ## 项目结构
 
 ```
 zotero_llm_metadata/
-├── __main__.py         # 入口 + 五种运行模式
-├── config.py           # 参数集中管理（模型、路径、图谱参数等）
-├── runners.py          # 各模式的顶层调度逻辑
+├── pyproject.toml          # 包定义（setuptools + src 布局）、依赖、控制台入口
+├── requirements.txt        # 依赖清单（等价于 pyproject 的 extras 合集）
+├── README.md  LICENSE
 │
-├── file_extract.py     # 多格式文本提取 + 图片处理
-│   ├── detect_file_type
-│   ├── extract_pdf_text / extract_word_text / extract_excel_text
-│   ├── extract_pptx_text / extract_html_text / extract_markdown_text
-│   ├── extract_txt_text / extract_csv_text / extract_json_text
-│   ├── extract_rtf_text / extract_epub_text / extract_odt_text
-│   ├── resize_and_encode_image
-│   └── read_file_url
+├── src/zotero_llm_metadata/    # 批处理增强流水线（可导入包）
+│   ├── __main__.py         # 入口 + 五种运行模式
+│   ├── config.py           # 参数集中管理（模型、路径、图谱参数等）
+│   ├── runners.py          # 各模式的顶层调度逻辑
+│   ├── extract.py          # 多格式文本提取 + 图片处理
+│   ├── llm.py              # LLM / VL 调用、重试、Prompt 构建、JSON 解析
+│   ├── tags.py             # 无标签条目扫描 + LLM 标签生成
+│   ├── zotero/             # Zotero 集成
+│   │   ├── api.py          # HTTP API 交互、元数据工具函数
+│   │   ├── db.py           # SQLite 操作（reparent / apply abstracts / tag cleanup）
+│   │   └── process.py      # 进程管理（检测 / 关闭 / 重启）
+│   └── graph/              # 知识图谱
+│       ├── builder.py      # 建图、同义词归一、度数过滤、Leiden 聚类、导出
+│       └── visualize.py    # 从 graph.json 生成交互式 HTML（Pyvis）
 │
-├── llm_client.py       # LLM / VL 调用、重试、Prompt 构建
-│   ├── request_llm_with_retry
-│   ├── extract_json / _sanitize_json_control_chars
-│   ├── build_prompt / build_abstract_prompt / build_image_extract_prompt
-│   ├── generate_abstract_for_item
-│   └── extract_text_from_image
-│
-├── zotero_api.py       # Zotero HTTP API 交互
-│   ├── fetch_no_metadata_items / fetch_no_abstract_items
-│   ├── get_child_attachment_keys / get_local_item_data
-│   ├── find_local_item_by_tag / get_inherited_collections
-│   └── normalize_tags / build_item_data / format_creators
-│
-├── zotero_db.py        # Zotero SQLite 操作
-│   ├── reparent_attachments_in_db
-│   ├── apply_abstracts_from_mappings
-│   ├── load_repair_mappings_from_jsonl / load_abstract_mappings_from_jsonl
-│   └── cleanup_llm_tags
-│
-├── zotero_process.py   # Zotero 进程管理
-│   ├── is_zotero_running
-│   ├── close_zotero / reopen_zotero
-│   └── ensure_zotero_closed
-│
-├── fill_tags.py        # 无标签条目扫描 + LLM 标签生成
-│   ├── fetch_no_tag_items
-│   └── generate_tags_for_item
-│
-├── graph_builder.py    # 知识图谱构建
-│   ├── SYNONYM_MAP / resolve_synonym  # 双语 + 中文近义词归一化
-│   ├── TagFilter                      # 高频标签过滤
-│   ├── build_graph                    # NetworkX 图构建
-│   ├── graph_stats / cluster          # 统计 + Leiden 聚类
-│   └── to_json / to_html / generate_report  # 导出
-│
-├── graph_visualize.py  # 从 graph.json 生成交互式 HTML（Pyvis）
-│
-├── graph/              # --build-graph 输出目录（gitignored）
-│   ├── graph.json
-│   ├── GRAPH_REPORT.md
-│   ├── TAG_FILTER.md
-│   └── graph_vis.html
-│
-├── zotero/             # Claude Code 技能（自包含，镜像到 .claude/skills/zotero/）
-│   ├── SKILL.md        # 技能说明与命令参考
-│   ├── bin/zot         # 包装脚本（自动定位 venv，设置 ZOTERO_LOCAL）
-│   ├── scripts/        # CLI 代码（cli.py + client / local_db / graph_query 等模块）
+├── skill/                  # Claude Code 技能（自包含，镜像到 .claude/skills/zotero/）
+│   ├── SKILL.md            # 技能说明与命令参考
+│   ├── bin/zot             # 包装脚本（自动定位 venv，设置 ZOTERO_LOCAL）
+│   ├── scripts/            # CLI 代码（cli.py + graph_query / synonyms / local_db 等）
 │   ├── requirements.txt
-│   └── .venv/          # 技能本地虚拟环境（gitignored）
+│   └── .venv/              # 技能本地虚拟环境（gitignored）
 │
-├── architecture.png    # 总体架构图（批处理流水线 + 查询技能）
-└── zotero-llm-metadata-arch.png  # 批处理流水线细化图
+├── docs/                   # 文档资源
+│   ├── architecture.png            # 总体架构图（批处理流水线 + 查询技能）
+│   └── zotero-llm-metadata-arch.png  # 批处理流水线细化图
+│
+├── graph/                  # --build-graph 输出目录（gitignored）
+│   ├── graph.json          # 节点/边/社区数据
+│   ├── GRAPH_REPORT.md     # 图谱分析报告
+│   ├── TAG_FILTER.md       # 被过滤的高频标签
+│   └── graph_vis.html      # 交互式可视化
+│
+└── lib/                    # graph_vis.html 的 pyvis 本地资源（gitignored，随可视化生成）
+    ├── vis-9.1.2/          # vis-network JS/CSS
+    ├── tom-select/         # 下拉选择组件
+    └── bindings/           # pyvis 交互绑定
 ```
+
+> `lib/` 是 pyvis 在生成 `graph/graph_vis.html` 时于运行目录（仓库根）释放的静态资源，属于图谱可视化产物，已随 `graph/` 一起 gitignored。

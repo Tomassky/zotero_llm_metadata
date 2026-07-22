@@ -11,7 +11,7 @@ except Exception:
     print("Missing dependency: httpx. Install with `python3 -m pip install httpx`.", file=sys.stderr)
     raise
 
-from file_extract import truncate_for_print
+from .extract import truncate_for_print
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +265,7 @@ def build_abstract_prompt(item_key: str, evidence_text: str) -> Tuple[str, str]:
 
 
 def build_evidence_text(item_data: dict, attachment_fulltext: str, max_fulltext_chars: int) -> str:
-    from zotero_api import format_creators
+    from .zotero.api import format_creators
     tags = item_data.get("tags", [])
     tag_text = ""
     if isinstance(tags, list):
@@ -345,7 +345,7 @@ def generate_abstract_for_item(
     max_output_tokens: int,
     debug: bool,
 ) -> dict:
-    from zotero_api import join_url
+    from .zotero.api import join_url
     system, user = build_abstract_prompt(item_key=item_key, evidence_text=evidence_text)
     payload = {
         "model": model,
@@ -432,7 +432,7 @@ def extract_text_from_image(
     debug: bool = False,
 ) -> str:
     """调用 VL 模型将图片转换为文字描述，返回 image_text 字符串；失败时返回空字符串。"""
-    from zotero_api import join_url
+    from .zotero.api import join_url
     data_url = f"data:{mime_type};base64,{image_b64}"
     payload = {
         "model": vl_model,

@@ -7,8 +7,9 @@ fixes the query-layer problems that made the old tools ineffective:
   1. Every result row now carries the Zotero **item key**, so search → explore
      can be chained (the old output printed only titles).
   2. The query is **synonym-normalized** the same way tags were at build time
-     (reusing ``graph_builder.normalize_tag`` / ``resolve_synonym``), so English
-     or variant queries such as ``LLM`` / ``RAG`` hit the canonical Chinese tags.
+     (via the vendored ``synonyms.normalize_tag`` / ``resolve_synonym``), so
+     English or variant queries such as ``LLM`` / ``RAG`` hit the canonical
+     Chinese tags.
   3. Community-label matching **collects every match** instead of breaking on the
      first one (``大语言模型`` lives in 3 communities).
 
@@ -40,8 +41,10 @@ def _resolve_graph_json() -> Path:
     """Locate ``graph/graph.json`` by walking up from this file.
 
     Honors ``ZOTERO_GRAPH_JSON`` if set. Otherwise searches ancestor directories
-    for a ``graph/graph.json`` — robust regardless of how deep this package is
-    nested (it lives inside the skill: ``<repo>/.claude/skills/zotero/scripts``).
+    for a ``graph/graph.json`` — robust regardless of how deep this skill is
+    nested (it lives at ``<repo>/skill/scripts`` and, when installed, at
+    ``<repo>/.claude/skills/zotero/scripts``). Both walk up to the repo-root
+    ``graph/graph.json`` produced by ``--build-graph``.
     """
     env = os.environ.get("ZOTERO_GRAPH_JSON")
     if env:
@@ -52,18 +55,9 @@ def _resolve_graph_json() -> Path:
         if cand.exists():
             return cand
         cur = cur.parent
-    return _repo_root() / "graph" / "graph.json"
-
-
-def _repo_root() -> Path:
-    """Repo root = the ancestor directory that contains ``graph_builder.py``."""
-    cur = Path(__file__).resolve().parent
-    for _ in range(12):
-        if (cur / "graph_builder.py").exists():
-            return cur
-        cur = cur.parent
-    # Fallback: assume repo is 4 levels up (.../.claude/skills/zotero/scripts).
-    return Path(__file__).resolve().parents[4]
+    # Last resort: relative to the current working directory (docs say run from
+    # the repo root). If it doesn't exist, _ensure_graph reports a clear error.
+    return Path("graph") / "graph.json"
 
 
 def _load_graph_data() -> dict[str, Any]:
@@ -77,12 +71,12 @@ def _load_graph_data() -> dict[str, Any]:
 
 def _ensure_graph() -> str | None:
     if not _resolve_graph_json().exists():
-        return "No graph found. Run `python __main__.py --build-graph` in zotero_llm_metadata first."
+        return "No graph found. Run `python -m zotero_llm_metadata --build-graph` in zotero_llm_metadata first."
     return None
 
 
 # ---------------------------------------------------------------------------
-# Synonym-normalized query variants (reuse graph_builder — single source)
+# Synonym-normalized query variants (vendored synonyms — no repo import)
 # ---------------------------------------------------------------------------
 
 def _query_variants(query: str) -> list[str]:
@@ -93,13 +87,14 @@ def _query_variants(query: str) -> list[str]:
     """
     variants = {query.strip().lower()}
     try:
-        root = str(_repo_root())
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        import graph_builder as gb  # reuses SYNONYM_MAP — no duplication
+        # ``synonyms`` is a sibling module in this skill's scripts/ dir.
+        script_dir = str(Path(__file__).resolve().parent)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        from synonyms import normalize_tag, resolve_synonym
 
-        variants.add(gb.resolve_synonym(gb.normalize_tag(query)))
-    except Exception as e:  # pragma: no cover - fallback if import path changes
+        variants.add(resolve_synonym(normalize_tag(query)))
+    except Exception as e:  # pragma: no cover - defensive fallback
         logger.debug("synonym normalization unavailable: %s", e)
     return [v for v in variants if v]
 

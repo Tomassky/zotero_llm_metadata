@@ -8,8 +8,8 @@ except Exception:
     print("Missing dependency: httpx. Install with `python3 -m pip install httpx`.", file=sys.stderr)
     raise
 
-from config import make_args
-from runners import run_dry_run, run_fill_abstracts, run_fill_metadata_abstract, run_build_graph, run_fill_tags
+from .config import make_args
+from .runners import run_dry_run, run_fill_abstracts, run_fill_metadata_abstract, run_build_graph, run_fill_tags
 
 
 def main() -> None:

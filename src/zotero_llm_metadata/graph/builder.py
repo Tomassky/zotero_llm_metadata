@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 
 # Maps variant normalized tags to their canonical form.
 # Canonical = the most common Chinese variant for each concept group.
+#
+# SINGLE SOURCE OF TRUTH. The skill keeps a vendored copy at
+# ``skill/scripts/synonyms.py`` (query-time normalization must match how the
+# graph was built). If you edit this map, mirror the change there.
 SYNONYM_MAP: dict[str, str] = {
     # Bilingual pairs (English → Chinese canonical)
     "penetration-testing": "渗透测试",
@@ -159,7 +163,7 @@ def resolve_synonym(tag: str) -> str:
 def fetch_items_from_db(db_path: str) -> list[dict[str, Any]]:
     """Fetch all Zotero items with their tags and collections from the local DB.
 
-    Returns a list of item dicts suitable for graph_builder.build_graph().
+    Returns a list of item dicts suitable for build_graph().
     """
     uri = f"file:{db_path}?immutable=1"
     conn = sqlite3.connect(uri, uri=True)
@@ -243,7 +247,7 @@ def fetch_items_from_db(db_path: str) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Tag normalization (reuses graph_builder logic)
+# Tag normalization
 # ---------------------------------------------------------------------------
 
 def normalize_tag(tag: str) -> str:
