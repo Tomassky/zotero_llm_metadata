@@ -196,7 +196,7 @@ python -m zotero_llm_metadata.graph.visualize   # 生成 graph/graph_vis.html
 | `graph/GRAPH_REPORT.md` | 图谱分析报告（社区概览、关键节点、模块度） |
 | `graph/TAG_FILTER.md` | 被过滤掉的高频标签列表 |
 | `graph/graph_vis.html` | 交互式可视化（由 `graph/visualize.py` 生成） |
-| `lib/` | 可视化 HTML 依赖的 pyvis 本地资源（vis-network / tom-select 的 JS/CSS），随 `graph_vis.html` 一并生成 |
+| `graph/lib/` | 可视化 HTML 依赖的 pyvis 本地资源（bindings 等 JS/CSS），与 `graph_vis.html` 同级生成，相对引用自洽 |
 
 ## 模块说明
 
@@ -250,16 +250,12 @@ zotero_llm_metadata/
 │   ├── architecture.png            # 总体架构图（批处理流水线 + 查询技能）
 │   └── zotero-llm-metadata-arch.png  # 批处理流水线细化图
 │
-├── graph/                  # --build-graph 输出目录（gitignored）
-│   ├── graph.json          # 节点/边/社区数据
-│   ├── GRAPH_REPORT.md     # 图谱分析报告
-│   ├── TAG_FILTER.md       # 被过滤的高频标签
-│   └── graph_vis.html      # 交互式可视化
-│
-└── lib/                    # graph_vis.html 的 pyvis 本地资源（gitignored，随可视化生成）
-    ├── vis-9.1.2/          # vis-network JS/CSS
-    ├── tom-select/         # 下拉选择组件
-    └── bindings/           # pyvis 交互绑定
+└── graph/                  # --build-graph 输出目录（gitignored）
+    ├── graph.json          # 节点/边/社区数据
+    ├── GRAPH_REPORT.md     # 图谱分析报告
+    ├── TAG_FILTER.md       # 被过滤的高频标签
+    ├── graph_vis.html      # 交互式可视化
+    └── lib/                # pyvis 本地资源（bindings 等），与 html 同级
 ```
 
-> `lib/` 是 pyvis 在生成 `graph/graph_vis.html` 时于运行目录（仓库根）释放的静态资源，属于图谱可视化产物，已随 `graph/` 一起 gitignored。
+> `lib/` 是 pyvis 生成 `graph/graph_vis.html` 时释放的静态资源。`visualize.py` 会从输出目录写出，使其与 html 同级落在 `graph/lib/`，让 html 里的相对引用自洽；整个 `graph/` 已 gitignored。

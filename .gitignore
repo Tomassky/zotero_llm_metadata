@@ -14,7 +14,9 @@ venv/
 # Output data files
 *.jsonl
 
-# Generated graph output (repo-root only — not the src graph/ code subpackage)
+# Generated graph output — repo-root artifact dir only, NOT the src graph/ code
+# subpackage. (/graph/ also covers graph/lib/; /lib/ is a fallback for custom
+# visualize output paths that emit pyvis lib/ at the repo root.)
 /graph/
 /lib/
 

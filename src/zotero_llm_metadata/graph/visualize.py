@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from pyvis.network import Network
@@ -76,8 +77,23 @@ def visualize(graph_json_path: str, output_html: str = "graph/graph_vis.html") -
         )
 
     net.show_buttons(filter_=["physics"])
-    net.save_graph(output_html)
+
+    # pyvis writes its local ``lib/`` bundle (e.g. lib/bindings/utils.js) relative
+    # to the current working directory, while the generated HTML references those
+    # files relative to itself. Save from the output directory so lib/ lands next
+    # to the HTML and the relative references resolve correctly.
+    out_path = Path(output_html)
+    out_dir = out_path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    prev_cwd = Path.cwd()
+    try:
+        os.chdir(out_dir)
+        net.save_graph(out_path.name)
+    finally:
+        os.chdir(prev_cwd)
+
     print(f"Interactive graph saved to {output_html}")
+    print(f"  Local resources written to {out_dir / 'lib'}/")
     print("Open in browser to explore: drag nodes, hover for details, filter by physics.")
 
 
